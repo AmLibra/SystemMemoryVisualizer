@@ -1,0 +1,78 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root,
+.app {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  background: #151517;
+  color: #fcfcfe;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.chart-wrapper,
+.chart {
+  width: 100%;
+  height: 100%;
+}
+
+.chart-wrapper {
+  position: relative;
+}
+
+.chart {
+  background: #0d0f0e;
+}
+
+.nav {
+  position: fixed;
+  z-index: 50;
+  top: 0;
+  inset-inline: 0;
+  width: 100%;
+  background-color: rgba(30, 30, 30, .7);
+  backdrop-filter: blur(24px);
+  border-bottom: 1px solid #333335;
+  min-height: 60px;
+  padding: 0 16px;
+}
+
+.nav h1 {
+  margin: 0;
+  line-height: 60px;
+  text-align: center;
+  font-size: 1.2rem;
+  letter-spacing: -.025em;
+  font-weight: 500;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.y-axis-ticks {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: calc(100% - 150px);
+  width: 125px;
+  z-index: 30;
+
+  background-color: rgb(21, 21, 23, .8);
+  backdrop-filter: blur(24px);
+  border-right: 1px solid rgba(255, 255, 255, .1);
+  font-family: ui-monospace, Menlo, Monaco, "Cascadia Mono", "Segoe UI Mono", monospace;
+}
