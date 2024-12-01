@@ -13,24 +13,25 @@ for file_name, size in zip(file_names, file_sizes):
     with open(file_name, "wb") as f:
         f.write(b"\0" * size)
 
-# Function to randomly access and modify mapped memory
-def random_mmap_access(file_name, size):
+# Function to randomly resize mapped memory
+def random_mremap(file_name, size):
     with open(file_name, "r+b") as f:
-        # Map part or all of the file into memory
-        mmap_size = random.choice([size, size // 2, 4096])  # Full, half, or 4 KB
-        with mmap.mmap(f.fileno(), mmap_size) as mmapped_file:
-            # Perform a random write within the mapped area
-            offset = random.randint(0, mmap_size - 1)
-            mmapped_file[offset] = random.randint(0, 255)
-            # Read access to simulate different access patterns
-            _ = mmapped_file[offset]
+        # Map the entire file into memory
+        with mmap.mmap(f.fileno(), size) as mmapped_file:
+            # Perform random resizing (simulates mremap)
+            new_size = random.choice([size, size * 2, size // 2])  # Double, half, or same size
+            try:
+                mmapped_file.resize(new_size)  # Resize the memory region
+                print(f"Resized mmap: {file_name}, Old Size: {size}, New Size: {new_size}")
+            except ValueError as e:
+                print(f"Failed to resize mmap: {e}")
 
-# Continuously map, access, and unmap memory with varied patterns
+# Continuously map, resize, and unmap memory with varied patterns
 for _ in range(100):
     # Choose a random file and access pattern
     file_name = random.choice(file_names)
     size = os.path.getsize(file_name)
-    random_mmap_access(file_name, size)
+    random_mremap(file_name, size)
     time.sleep(1)  # Delay to keep each mmap active for a short time
 
 # Clean up by removing the test files

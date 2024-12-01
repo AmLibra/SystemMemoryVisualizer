@@ -28,13 +28,13 @@ After activating the virtual environment, you’ll be able to run the BPF-relate
 To run the monitoring script, you must have root privileges. To run the script, use the following command to monitor all system calls supported for all processes running on the system:
 
 ```bash
-sudo python3 run_kprobes.py all 
+sudo ./main.py all 
 ```
 
-To monitor a specific system process, use the following command:
+To monitor a specific system process or command, use the following command:
 
 ```bash
-sudo python3 run_kprobes.py <PID>
+sudo ./main.py <command>
 ```
 
 ## Testing programs
@@ -42,28 +42,19 @@ sudo python3 run_kprobes.py <PID>
 We provide a simple program for each supported system call to test the monitoring script. To run the test programs for a specific system call, use the following command:
 
 ```bash
-python3 /<system_call>/test_program.py
+./<system_call>/test_program.py
 ```
 
 For example, to test the `mmap` system call, use the following command:
-
-```bash
-python3 mmap/test_program.py & 
-```
-
-The `&` character will also return the PID of the program, which can be used to monitor the system call using: 
     
 ```bash
-sudo python3 run_kprobes.py <PID>
-```
-
-Alternatively, a useful one-liner to test the monitoring script for this instance is:
-
-```bash
-python3 mmap/test_program.py & pid=$! && sudo python3 run_kprobes.py $pid
+sudo ./main.py ./mmap/test_program.py
 ```
 
 ## Supported System Calls
 
 The following system calls are supported by the monitoring script:
 - `mmap`
+- `munmap`
+- `mremap`
+- `brk`

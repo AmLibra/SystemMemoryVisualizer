@@ -1,28 +1,40 @@
-#include <uapi/linux/ptrace.h>
-#include <linux/sched.h>
-#include <linux/types.h>
+#include <linux/bpf.h>
+#include <uapi/linux/bpf.h>
+#include <linux/ptrace.h>
 
+// Structure for sys_enter_mmap events
 struct mmap_data_t {
-    u64 address;
-    u64 size;
-    u32 pid;
-    char comm[16];  // Process name (16 bytes max for compatibility)
+    u64 pid;
+    u64 requested_addr; // Address passed to mmap (could be 0)
+    u64 size;           // Requested memory size
+    char comm[16];      // Process name
 };
 
-BPF_PERF_OUTPUT(mmap_events);  // Use perf buffer to send data to user space, I see it as a go channel
+// Structure for sys_exit_mmap events
+struct mmap_exit_data_t {
+    u64 pid;
+    u64 actual_addr;    // Address returned by mmap
+};
 
-int trace_mmap(struct tracepoint__syscalls__sys_enter_mmap *ctx) {
+BPF_PERF_OUTPUT(mmap_enter_events);
+BPF_PERF_OUTPUT(mmap_exit_events);
+
+int trace_mmap_enter(struct tracepoint__syscalls__sys_enter_mmap *ctx) {
     struct mmap_data_t data = {};
-
-    // Fill the data structure with mmap parameters
     data.pid = bpf_get_current_pid_tgid() >> 32;
-    data.address = ctx->addr;
+    data.requested_addr = ctx->addr;
     data.size = ctx->len;
-
-    // Retrieve the process name (command name)
     bpf_get_current_comm(&data.comm, sizeof(data.comm));
 
-    // Submit the event
-    mmap_events.perf_submit(ctx, &data, sizeof(data)); // mmap_events <- data
+    mmap_enter_events.perf_submit(ctx, &data, sizeof(data));
+    return 0;
+}
+
+int trace_mmap_exit(struct tracepoint__syscalls__sys_exit_mmap *ctx) {
+    struct mmap_exit_data_t exit_data = {};
+    exit_data.pid = bpf_get_current_pid_tgid() >> 32;
+    exit_data.actual_addr = ctx->ret;
+
+    mmap_exit_events.perf_submit(ctx, &exit_data, sizeof(exit_data));
     return 0;
 }
