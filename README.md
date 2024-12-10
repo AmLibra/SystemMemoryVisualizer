@@ -8,20 +8,35 @@ The scripts in this module are written in Python and use the BCC library to inte
 To install the necessary BPF tools and dependencies, run the following commands:
 
 ```bash
-sudo apt update                                              
+sudo apt update
 sudo apt install -y bpfcc-tools linux-headers-$(uname -r) libbpfcc-dev libbpfcc libelf-dev python3-bpfcc
 ```
 
 ## Activating the Virtual Environment
 
-This project uses a Python virtual environment for dependency management. To activate it, use the following command:
+This project uses a Python virtual environment for dependency management[^1].
+
+[^1]: Instructions in this section are based on the [Python Packaging User Guide](https://packaging.python.org/en/latest/guides/installing-using-pip-and-virtual-environments/).
+
+To create it, use the following command:
 
 ```bash
-source ./bpfvenv/bin/activate
+python3 -m venv .venv
 ```
 
-After activating the virtual environment, you’ll be able to run the BPF-related scripts and tools in this project.
+You can then enable the virtual environment using:
 
+```bash
+source .venv/bin/activate
+```
+
+Then, install the project requirements with:
+
+```bash
+python3 -m pip install -r requirements.txt
+```
+
+After activating the virtual environment and installing the requirements, you’ll be able to run the BPF-related scripts and tools in this project.
 
 ## Running the Scripts
 
