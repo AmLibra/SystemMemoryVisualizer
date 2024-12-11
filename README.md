@@ -43,13 +43,16 @@ After activating the virtual environment and installing the requirements, you’
 To run the monitoring script, you must have root privileges. To run the script, use the following command to monitor all system calls supported for all processes running on the system:
 
 ```bash
-sudo ./main.py all 
+sudo su
+source .venv/bin/activate
+export PYTHONPATH=$(dirname `find /usr/lib -name bcc`):$PYTHONPATH
+python3 ./main.py all
 ```
 
 To monitor a specific system process or command, use the following command:
 
 ```bash
-sudo ./main.py <command>
+python3 ./main.py <command>
 ```
 
 ## Testing programs

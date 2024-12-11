@@ -2,6 +2,7 @@ import threading
 from collections import defaultdict
 import math
 import time
+from utils.server import Server
 
 SUMMARY_INTERVAL = 1  # seconds
 
@@ -15,6 +16,9 @@ class MemoryTracker:
         self.allocations = defaultdict(list)
         self.program_breaks = defaultdict(lambda: 0)  # Current program break per PID
         self.lock = threading.Lock()  # Lock for thread safety
+        
+        self.server = Server()
+        self.server.start_on_separate_thread()
 
     def add_allocation(self, pid, start_addr, size, comm):
         with self.lock:  # Ensure thread-safe access
