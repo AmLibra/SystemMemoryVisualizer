@@ -1,6 +1,19 @@
+import { useEffect } from "react";
 import Visualizer, { PAGE_NUMBER_MAX } from "./Visualizer";
 
 export default function App() {
+
+  useEffect(() => {
+    const socket = new WebSocket("ws://172.16.106.136:8000");
+
+    socket.onmessage = (event) => {
+      alert(event.data);
+    };
+
+    return () => {
+      socket.close();
+    };
+  }, []);
   return (
     <div className="app">
       <nav className="nav">
