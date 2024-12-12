@@ -17,6 +17,8 @@ class MemoryTracker:
         self.program_breaks = defaultdict(lambda: 0)  # Current program break per PID
         self.lock = threading.Lock()  # Lock for thread safety
         
+        self.start_time = time.time_ns()
+        
         self.server = Server()
         self.server.start_on_separate_thread()
 
@@ -54,6 +56,7 @@ class MemoryTracker:
 
         # Merge adjacent or overlapping allocations to coalesce memory ranges
         self._merge_allocations(pid)
+        self._broadcast_allocations()
 
     def _merge_allocations(self, pid):
         """Merge adjacent or overlapping allocations for a process."""
@@ -144,6 +147,32 @@ class MemoryTracker:
                 f"Start Address: {hex(start_addr)} | Size: {size}")
 
         self.allocations[pid] = new_allocations
+        self._broadcast_allocations()
+
+    def _broadcast_allocations(self):
+        MIN_PAGE_SIZE = 4096
+
+        self.server.notify_clients_threadsafe({
+            "type": "allocations",
+            "time": time.time_ns() - self.start_time,
+            "allocations": list(map(
+                lambda x: {
+                    "pid": x[0],
+                    "allocations": list(map(
+                        lambda a: {
+                            "start_addr": a["start_addr"] / MIN_PAGE_SIZE,
+                            "end_addr": a["end_addr"] / MIN_PAGE_SIZE,
+                            "size": a["size"],
+                            "pages": a["pages"],
+                            "comm": a["comm"],
+                        },
+                        x[1]
+                    ))
+                },
+                self.allocations.items()
+            )),
+        })
+        pass
 
     def handle_brk(self, pid, tid, new_brk, comm):
         """Handle a brk syscall and update the program break."""
@@ -174,6 +203,11 @@ class MemoryTracker:
             time.sleep(SUMMARY_INTERVAL)  
 
     def summarize_allocations(self):
+        self.server.notify_clients_threadsafe({
+            "type": "time",
+            "time": time.time_ns() - self.start_time,
+        }, save_event=False)
+
         with self.lock:  # Ensure thread-safe read access
             print("\n[Summary of Virtual Memory allocations]")
             for pid, allocations in self.allocations.items():
