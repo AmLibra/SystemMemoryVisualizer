@@ -1,17 +1,95 @@
-import { useEffect } from "react";
-import Visualizer, { PAGE_NUMBER_MAX } from "./Visualizer";
+import { useEffect, useRef, useState } from "react";
+import Visualizer, { Allocation, PAGE_NUMBER_MAX } from "./Visualizer";
+
+type AllocationId = number;
+type Time = number;
+
+type IncomingMessage =
+  | {
+      type: "add";
+      time: Time;
+      allocation: {
+        id: AllocationId;
+        pid: number;
+        startAddr: number;
+        endAddr: number;
+        size: number;
+        pages: number;
+        comm: string;
+      };
+    }
+  | {
+      type: "remove";
+      time: Time;
+      id: AllocationId;
+      pid: number;
+    }
+  | { type: "time"; time: Time }
+  | { type: "catchup"; messages: IncomingMessage[] };
 
 export default function App() {
+  const [allocations, setAllocations] = useState<
+    Record<AllocationId, Allocation>
+  >({});
+  const [maxTime, setMaxTime] = useState<Time>(1);
 
+  const initialized = useRef(false);
   useEffect(() => {
+    if (initialized.current) {
+      return;
+    }
+    initialized.current = true;
+
     const socket = new WebSocket("ws://172.16.106.136:8000");
 
-    socket.onmessage = (event) => {
-      alert(event.data);
-    };
+    function handleMessage(message: IncomingMessage) {
+      const { type } = message;
 
-    return () => {
-      socket.close();
+      if (type !== "catchup") {
+        setMaxTime((t) => Math.max(t, message.time));
+      }
+
+      switch (type) {
+        case "add":
+          setAllocations((allocations) => {
+            const { id } = message.allocation;
+            return {
+              ...allocations,
+              [id]: {
+                startAddress: message.allocation.startAddr,
+                size: message.allocation.size,
+                allocatedAt: message.time,
+                freedAt: null,
+              },
+            };
+          });
+          break;
+        case "remove":
+          setAllocations((allocations) => {
+            const { id } = message;
+            return {
+              ...allocations,
+              [id]: {
+                ...allocations[id],
+                freedAt: message.time,
+              },
+            };
+          });
+          break;
+        case "time":
+          setMaxTime((t) => Math.max(t, message.time));
+          break;
+        case "catchup":
+          message.messages.forEach(handleMessage);
+          break;
+        default:
+          const impossibleType: never = type;
+          throw new Error("Invalid message type: " + impossibleType);
+      }
+    }
+
+    socket.onmessage = (event) => {
+      handleMessage(JSON.parse(event.data));
     };
   }, []);
   return (
@@ -21,78 +99,10 @@ export default function App() {
       </nav>
 
       <Visualizer
-        allocations={[
-          {
-            startAddress: 0,
-            size: 1,
-            allocatedAt: 0,
-            freedAt: null,
-          },
-          {
-            startAddress: PAGE_NUMBER_MAX / 10,
-            size: (PAGE_NUMBER_MAX * 0.5) / 10,
-            allocatedAt: 0,
-            freedAt: 25,
-          },
-          {
-            startAddress: PAGE_NUMBER_MAX / 10,
-            size: PAGE_NUMBER_MAX / 10,
-            allocatedAt: 25,
-            freedAt: null,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 5,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 0,
-            freedAt: 10,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 6,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 0,
-            freedAt: 20,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 7,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 0,
-            freedAt: 30,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 8,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 8,
-            freedAt: 40,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 9,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 10,
-            freedAt: 45,
-          },
-          {
-            startAddress: (PAGE_NUMBER_MAX / 10) * 9 + PAGE_NUMBER_MAX / 100,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 13,
-            freedAt: 48,
-          },
-          {
-            startAddress:
-              (PAGE_NUMBER_MAX / 10) * 9 + (PAGE_NUMBER_MAX / 100) * 2,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 27,
-            freedAt: 49,
-          },
-          {
-            startAddress:
-              (PAGE_NUMBER_MAX / 10) * 9 + (PAGE_NUMBER_MAX / 100) * 3,
-            size: PAGE_NUMBER_MAX / 100,
-            allocatedAt: 29,
-            freedAt: 49.5,
-          },
-        ]}
-        maxTime={50}
+        allocations={Object.values(allocations)}
+        maxTime={maxTime}
         usage={[
+          // TODO Use the real data
           {
             time: 0,
             virtualMemoryUsage: PAGE_NUMBER_MAX / 5,

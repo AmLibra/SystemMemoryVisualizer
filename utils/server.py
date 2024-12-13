@@ -29,7 +29,7 @@ class Server:
 
         await websocket.send(json.dumps({
             "type": "catchup",
-            "events": self._events,
+            "messages": self._events,
         }))
 
         try:
