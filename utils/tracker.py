@@ -150,8 +150,6 @@ class MemoryTracker:
         self._broadcast_allocations()
 
     def _broadcast_allocations(self):
-        MIN_PAGE_SIZE = 4096
-
         self.server.notify_clients_threadsafe({
             "type": "allocations",
             "time": time.time_ns() - self.start_time,
@@ -160,8 +158,8 @@ class MemoryTracker:
                     "pid": x[0],
                     "allocations": list(map(
                         lambda a: {
-                            "start_addr": a["start_addr"] / MIN_PAGE_SIZE,
-                            "end_addr": a["end_addr"] / MIN_PAGE_SIZE,
+                            "startAddr": math.ceil(a["start_addr"] / self.page_size),
+                            "endAddr": math.ceil(a["end_addr"] / self.page_size),
                             "size": a["size"],
                             "pages": a["pages"],
                             "comm": a["comm"],
