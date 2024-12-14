@@ -15,7 +15,7 @@ export type Time = number;
  * 48 bits here comes from the fact that current AMD64 CPUs support
  * 48-bit virtual addresses (not 64-bit).
  */
-export const ADDRESS_MAX: ByteAddressUnit = (2 ** 48) - 1;
+export const ADDRESS_MAX: ByteAddressUnit = 2 ** 48 - 1;
 
 export type Allocation = {
   startAddress: ByteAddressUnit;
@@ -33,10 +33,7 @@ export type MemoryUsageDataPoint = {
 
 function formatAddress(pageNumber: ByteAddressUnit) {
   const UINT48_DIGITS = 12;
-  return pageNumber
-    .toString(16)
-    .toUpperCase()
-    .padStart(UINT48_DIGITS, "0");
+  return pageNumber.toString(16).toUpperCase().padStart(UINT48_DIGITS, "0");
 }
 
 export default function Visualizer(props: {
@@ -115,7 +112,7 @@ function VisualizerContents({
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 77000])
+      .scaleExtent([1, 400_000_000_000])
       .translateExtent([
         [0, 0],
         [width, height],
@@ -156,7 +153,7 @@ function VisualizerContents({
 
       <svg className="chart" ref={svgRef}>
         <g transform={`translate(${margin.left}, ${margin.top})`}>
-          <g transform={transform.toString()}>
+          <g>
             {/* Grid lines */}
             {ticks
               .filter(({ type }) => type !== "default")
@@ -165,46 +162,41 @@ function VisualizerContents({
                 return (
                   <line
                     key={value}
-                    x1={-margin.left}
-                    x2={width - margin.right}
-                    y1={height}
-                    y2={height}
+                    x1={transform.applyX(-margin.left)}
+                    x2={transform.applyX(width - margin.right)}
+                    y1={transform.applyY(height)}
+                    y2={transform.applyY(height)}
                     stroke={type === "major" ? "#2a2a2a" : "#222"}
-                    strokeWidth={intraElementMargin}
-                    strokeDasharray={
-                      type === "minor"
-                        ? `${borderRadius} ${borderRadius}`
-                        : undefined
-                    }
+                    strokeWidth={2}
+                    strokeDasharray={type === "minor" ? "4 4" : undefined}
                   />
                 );
               })}
+          </g>
 
+          <g>
             {/* Allocations */}
-            {allocations.map((allocation, index) => {
-              const height = Math.max(
-                intraElementMargin,
-                yScale(allocation.size) - intraElementMargin
-              );
-              const fixedBorderRadius = Math.min(height / 2, borderRadius);
-              return (
-                <rect
-                  key={index}
-                  x={xScale(allocation.allocatedAt)}
-                  width={
-                    Math.max(
-                      0,
-                      xScale(allocation.freedAt ?? maxTime) -
+            {allocations.map((allocation, index) => (
+              <rect
+                key={index}
+                x={transform.applyX(xScale(allocation.allocatedAt))}
+                width={
+                  transform.k *
+                  Math.max(
+                    0,
+                    xScale(allocation.freedAt ?? maxTime) -
                       xScale(allocation.allocatedAt) -
                       intraElementMargin
-                    )
-                  }
-                  y={yScale(allocation.startAddress)}
-                  height={height}
-                  fill={COLORS[index % COLORS.length]}
-                />
-              );
-            })}
+                  )
+                }
+                y={transform.applyY(yScale(allocation.startAddress))}
+                height={Math.max(
+                  1,
+                  transform.k * (yScale(allocation.size) - intraElementMargin)
+                )}
+                fill={COLORS[index % COLORS.length]}
+              />
+            ))}
           </g>
 
           <g>
@@ -258,15 +250,25 @@ function VisualizerContents({
 
 function useAddressTicks(
   height: number,
-  transform: d3.ZoomTransform,
+  transform: d3.ZoomTransform
 ): { value: number; type: "default" | "minor" | "major" }[] {
   return useMemo(() => {
     const yScale = d3
       .scaleLinear()
       .domain([0, ADDRESS_MAX])
       .range([0, height - margin.top - margin.bottom]);
-    const minVisibleAddress: ByteAddressUnit = clamp(0, Math.floor(yScale.invert(transform.invertY(0))), ADDRESS_MAX);
-    const maxVisibleAddress: ByteAddressUnit = clamp(0, Math.floor(yScale.invert(transform.invertY(height - margin.top - margin.bottom))), ADDRESS_MAX);
+    const minVisibleAddress: ByteAddressUnit = clamp(
+      0,
+      Math.floor(yScale.invert(transform.invertY(0))),
+      ADDRESS_MAX
+    );
+    const maxVisibleAddress: ByteAddressUnit = clamp(
+      0,
+      Math.floor(
+        yScale.invert(transform.invertY(height - margin.top - margin.bottom))
+      ),
+      ADDRESS_MAX
+    );
 
     const zoomedHeight = (height - margin.top - margin.bottom) * transform.k;
 
@@ -276,7 +278,11 @@ function useAddressTicks(
       2 ** Math.floor(Math.log2(ADDRESS_MAX / zoomedHeight / VALUES_PER_PIXEL));
 
     const result: { value: number; type: "default" | "minor" | "major" }[] = [];
-    for (let value = largestMultipleUnder(increment, minVisibleAddress); value < maxVisibleAddress; value += increment) {
+    for (
+      let value = largestMultipleUnder(increment, minVisibleAddress);
+      value < maxVisibleAddress;
+      value += increment
+    ) {
       const modulo = value % (increment * 0x4);
 
       result.push({
