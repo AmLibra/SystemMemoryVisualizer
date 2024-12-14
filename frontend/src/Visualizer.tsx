@@ -1,7 +1,6 @@
 import { useMeasure } from "@uidotdev/usehooks";
 import * as d3 from "d3";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { COLORS } from "./util/colors";
 import {
   MemoryUsageLineChart,
   physicalMemoryAcessor,
@@ -23,6 +22,8 @@ export type Allocation = {
 
   allocatedAt: Time;
   freedAt: Time | null;
+
+  fill: string;
 };
 
 export type MemoryUsageDataPoint = {
@@ -190,7 +191,7 @@ function VisualizerContents({
                   1,
                   transform.k * yScale(allocation.size)
                 )}
-                fill={COLORS[index % COLORS.length]}
+                fill={allocation.fill}
               />
             ))}
           </g>

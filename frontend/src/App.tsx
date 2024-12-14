@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Visualizer, { Allocation, ADDRESS_MAX } from "./Visualizer";
+import { COLORS } from "./util/colors";
 
 type AllocationId = number;
 type Time = number;
@@ -60,6 +61,7 @@ export default function App() {
                 size: message.allocation.endAddr - message.allocation.startAddr,
                 allocatedAt: message.time,
                 freedAt: null,
+                fill: COLORS[Math.floor(Math.random() * COLORS.length)]
               },
             };
           });
