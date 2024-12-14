@@ -61,6 +61,13 @@ const USAGE_CHART_HEIGHT = 120;
 
 const USAGE_CHART_FULL_HEIGHT = USAGE_CHART_HEIGHT + USAGE_CHART_PADDING * 2;
 
+const margin = {
+  top: 75,
+  right: 5,
+  bottom: 20 + USAGE_CHART_FULL_HEIGHT,
+  left: 135,
+} as const;
+
 function VisualizerContents({
   allocations,
   maxTime,
@@ -76,13 +83,6 @@ function VisualizerContents({
   usage: MemoryUsageDataPoint[];
   availablePhysicalMemory: ByteAddressUnit;
 }) {
-  const margin = {
-    top: 75,
-    right: 5,
-    bottom: 20 + USAGE_CHART_FULL_HEIGHT,
-    left: 135,
-  } as const;
-
   const xScale = d3
     .scaleLinear()
     .domain([0, maxTime])
@@ -130,10 +130,7 @@ function VisualizerContents({
   const intraElementMargin = 2 / transform.k;
   const borderRadius = 4 / transform.k;
 
-  const ticks = useAddressTicks(
-    ADDRESS_MAX,
-    (height - margin.top - margin.bottom) * transform.k
-  );
+  const ticks = useAddressTicks(height, transform);
 
   return (
     <>
@@ -262,17 +259,19 @@ function VisualizerContents({
 }
 
 function useAddressTicks(
-  maxValue: number,
-  height: number
+  height: number,
+  transform: d3.ZoomTransform,
 ): { value: number; type: "default" | "minor" | "major" }[] {
   return useMemo(() => {
+    const zoomedHeight = (height - margin.top - margin.bottom) * transform.k;
+
     const VALUES_PER_PIXEL = 1 / 50;
 
     const increment =
-      2 ** Math.floor(Math.log2(maxValue / height / VALUES_PER_PIXEL));
+      2 ** Math.floor(Math.log2(ADDRESS_MAX / zoomedHeight / VALUES_PER_PIXEL));
 
     const result: { value: number; type: "default" | "minor" | "major" }[] = [];
-    for (let value = 0; value < maxValue; value += increment) {
+    for (let value = 0; value < ADDRESS_MAX; value += increment) {
       const modulo = value % (increment * 0x4);
 
       result.push({
@@ -287,5 +286,5 @@ function useAddressTicks(
     }
 
     return result;
-  }, [maxValue, height]);
+  }, [height, transform]);
 }
