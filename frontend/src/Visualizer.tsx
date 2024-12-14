@@ -115,7 +115,7 @@ function VisualizerContents({
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
-      .scaleExtent([1, 150])
+      .scaleExtent([1, 77000])
       .translateExtent([
         [0, 0],
         [width, height],
@@ -183,7 +183,7 @@ function VisualizerContents({
             {/* Allocations */}
             {allocations.map((allocation, index) => {
               const height = Math.max(
-                1,
+                intraElementMargin,
                 yScale(allocation.size) - intraElementMargin
               );
               const fixedBorderRadius = Math.min(height / 2, borderRadius);
@@ -193,7 +193,7 @@ function VisualizerContents({
                   x={xScale(allocation.allocatedAt)}
                   width={
                     Math.max(
-                      intraElementMargin,
+                      0,
                       xScale(allocation.freedAt ?? maxTime) -
                       xScale(allocation.allocatedAt) -
                       intraElementMargin
@@ -202,8 +202,6 @@ function VisualizerContents({
                   y={yScale(allocation.startAddress)}
                   height={height}
                   fill={COLORS[index % COLORS.length]}
-                  rx={fixedBorderRadius}
-                  ry={fixedBorderRadius}
                 />
               );
             })}
@@ -263,6 +261,13 @@ function useAddressTicks(
   transform: d3.ZoomTransform,
 ): { value: number; type: "default" | "minor" | "major" }[] {
   return useMemo(() => {
+    const yScale = d3
+      .scaleLinear()
+      .domain([0, ADDRESS_MAX])
+      .range([0, height - margin.top - margin.bottom]);
+    const minVisibleAddress: ByteAddressUnit = clamp(0, Math.floor(yScale.invert(transform.invertY(0))), ADDRESS_MAX);
+    const maxVisibleAddress: ByteAddressUnit = clamp(0, Math.floor(yScale.invert(transform.invertY(height - margin.top - margin.bottom))), ADDRESS_MAX);
+
     const zoomedHeight = (height - margin.top - margin.bottom) * transform.k;
 
     const VALUES_PER_PIXEL = 1 / 50;
@@ -271,7 +276,7 @@ function useAddressTicks(
       2 ** Math.floor(Math.log2(ADDRESS_MAX / zoomedHeight / VALUES_PER_PIXEL));
 
     const result: { value: number; type: "default" | "minor" | "major" }[] = [];
-    for (let value = 0; value < ADDRESS_MAX; value += increment) {
+    for (let value = largestMultipleUnder(increment, minVisibleAddress); value < maxVisibleAddress; value += increment) {
       const modulo = value % (increment * 0x4);
 
       result.push({
@@ -287,4 +292,12 @@ function useAddressTicks(
 
     return result;
   }, [height, transform]);
+}
+
+function largestMultipleUnder(multiplier: number, x: number) {
+  return Math.floor((x - 1) / multiplier) * multiplier;
+}
+
+function clamp(min: number, value: number, max: number): number {
+  return Math.min(Math.max(min, value), max);
 }
