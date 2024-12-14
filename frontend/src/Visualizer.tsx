@@ -8,15 +8,18 @@ import {
   virtualMemoryAcessor,
 } from "./MemoryUsageLineChart";
 
-export type PageNumber = number;
+export type ByteAddressUnit = number;
 export type Time = number;
 
-export const PAGE_NUMBER_MAX: PageNumber = 2 ** 52 - 1; // = (2^64 bytes / 4 KiB) - 1
-const PAGE_BYTES = 4096; // 4 KiB
+/**
+ * 48 bits here comes from the fact that current AMD64 CPUs support
+ * 48-bit virtual addresses (not 64-bit).
+ */
+export const ADDRESS_MAX: ByteAddressUnit = (2 ** 48) - 1;
 
 export type Allocation = {
-  startAddress: PageNumber;
-  size: PageNumber;
+  startAddress: ByteAddressUnit;
+  size: ByteAddressUnit;
 
   allocatedAt: Time;
   freedAt: Time | null;
@@ -24,24 +27,23 @@ export type Allocation = {
 
 export type MemoryUsageDataPoint = {
   time: Time;
-  virtualMemoryUsage: PageNumber;
-  physicalMemoryUsage: PageNumber;
+  virtualMemoryUsage: ByteAddressUnit;
+  physicalMemoryUsage: ByteAddressUnit;
 };
 
-function formatPageNumber(pageNumber: PageNumber) {
-  const PAGE_NUMBER_LENGTH = 13;
+function formatAddress(pageNumber: ByteAddressUnit) {
+  const UINT48_DIGITS = 12;
   return pageNumber
     .toString(16)
-    .toString()
     .toUpperCase()
-    .padStart(PAGE_NUMBER_LENGTH, "0");
+    .padStart(UINT48_DIGITS, "0");
 }
 
 export default function Visualizer(props: {
   allocations: Allocation[];
   maxTime: Time;
   usage: MemoryUsageDataPoint[];
-  availablePhysicalMemory: PageNumber;
+  availablePhysicalMemory: ByteAddressUnit;
 }) {
   const [ref, { width, height }] = useMeasure();
 
@@ -72,7 +74,7 @@ function VisualizerContents({
   width: number;
   height: number;
   usage: MemoryUsageDataPoint[];
-  availablePhysicalMemory: PageNumber;
+  availablePhysicalMemory: ByteAddressUnit;
 }) {
   const margin = {
     top: 75,
@@ -87,7 +89,7 @@ function VisualizerContents({
     .range([0, width - margin.left - margin.right]);
   const yScale = d3
     .scaleLinear()
-    .domain([0, PAGE_NUMBER_MAX])
+    .domain([0, ADDRESS_MAX])
     .range([0, height - margin.top - margin.bottom]);
 
   const yScaleUsage = d3
@@ -129,7 +131,7 @@ function VisualizerContents({
   const borderRadius = 4 / transform.k;
 
   const ticks = useAddressTicks(
-    PAGE_NUMBER_MAX,
+    ADDRESS_MAX,
     (height - margin.top - margin.bottom) * transform.k
   );
 
@@ -149,7 +151,7 @@ function VisualizerContents({
               fontSize={12}
               letterSpacing={0.5}
             >
-              {formatPageNumber(value)}
+              {formatAddress(value)}
             </text>
           ))}
         </g>
@@ -193,9 +195,12 @@ function VisualizerContents({
                   key={index}
                   x={xScale(allocation.allocatedAt)}
                   width={
-                    xScale(allocation.freedAt ?? maxTime) -
-                    xScale(allocation.allocatedAt) -
-                    intraElementMargin
+                    Math.max(
+                      intraElementMargin,
+                      xScale(allocation.freedAt ?? maxTime) -
+                      xScale(allocation.allocatedAt) -
+                      intraElementMargin
+                    )
                   }
                   y={yScale(allocation.startAddress)}
                   height={height}

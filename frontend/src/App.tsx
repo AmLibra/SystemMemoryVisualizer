@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Visualizer, { Allocation, PAGE_NUMBER_MAX } from "./Visualizer";
+import Visualizer, { Allocation, ADDRESS_MAX } from "./Visualizer";
 
 type AllocationId = number;
 type Time = number;
@@ -57,7 +57,7 @@ export default function App() {
               ...allocations,
               [id]: {
                 startAddress: message.allocation.startAddr,
-                size: message.allocation.size,
+                size: message.allocation.endAddr - message.allocation.startAddr,
                 allocatedAt: message.time,
                 freedAt: null,
               },
@@ -105,31 +105,31 @@ export default function App() {
           // TODO Use the real data
           {
             time: 0,
-            virtualMemoryUsage: PAGE_NUMBER_MAX / 5,
+            virtualMemoryUsage: ADDRESS_MAX / 5,
             physicalMemoryUsage: 0,
           },
           {
             time: 10,
-            virtualMemoryUsage: PAGE_NUMBER_MAX / 10,
-            physicalMemoryUsage: PAGE_NUMBER_MAX / 10,
+            virtualMemoryUsage: ADDRESS_MAX / 10,
+            physicalMemoryUsage: ADDRESS_MAX / 10,
           },
           {
             time: 25,
-            virtualMemoryUsage: (PAGE_NUMBER_MAX * 2) / 10,
-            physicalMemoryUsage: PAGE_NUMBER_MAX / 10,
+            virtualMemoryUsage: (ADDRESS_MAX * 2) / 10,
+            physicalMemoryUsage: ADDRESS_MAX / 10,
           },
           {
             time: 40,
-            virtualMemoryUsage: PAGE_NUMBER_MAX / 2,
+            virtualMemoryUsage: ADDRESS_MAX / 2,
             physicalMemoryUsage: 0,
           },
           {
             time: 50,
-            virtualMemoryUsage: PAGE_NUMBER_MAX / 3,
-            physicalMemoryUsage: PAGE_NUMBER_MAX / 4,
+            virtualMemoryUsage: ADDRESS_MAX / 3,
+            physicalMemoryUsage: ADDRESS_MAX / 4,
           },
         ]}
-        availablePhysicalMemory={PAGE_NUMBER_MAX / 4}
+        availablePhysicalMemory={ADDRESS_MAX / 4}
       />
     </div>
   );

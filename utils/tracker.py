@@ -197,8 +197,8 @@ class MemoryTracker:
             "allocation": {
                 "id": allocation["id"],
                 "pid": pid,
-                "startAddr": math.ceil(allocation["start_addr"] / self.page_size),
-                "endAddr": math.ceil(allocation["end_addr"] / self.page_size),
+                "startAddr": allocation["start_addr"],
+                "endAddr": allocation["end_addr"],
                 "size": allocation["size"],
                 "pages": allocation["pages"],
                 "comm": allocation["comm"],
