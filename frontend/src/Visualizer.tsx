@@ -124,9 +124,6 @@ function VisualizerContents({
     svg.call(zoom);
   }, [width, height]);
 
-  const intraElementMargin = 2 / transform.k;
-  const borderRadius = 4 / transform.k;
-
   const ticks = useAddressTicks(height, transform);
 
   return (
@@ -185,14 +182,13 @@ function VisualizerContents({
                   Math.max(
                     0,
                     xScale(allocation.freedAt ?? maxTime) -
-                      xScale(allocation.allocatedAt) -
-                      intraElementMargin
+                      xScale(allocation.allocatedAt)
                   )
                 }
                 y={transform.applyY(yScale(allocation.startAddress))}
                 height={Math.max(
                   1,
-                  transform.k * (yScale(allocation.size) - intraElementMargin)
+                  transform.k * yScale(allocation.size)
                 )}
                 fill={COLORS[index % COLORS.length]}
               />
