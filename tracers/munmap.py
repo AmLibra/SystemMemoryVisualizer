@@ -3,9 +3,9 @@ from utils.tracker import MemoryTracker
 from tracers.common import MunmapEvent
 from tracers.common import RED, END, WITH_LOGGER
 
-def handle_munmap(cpu, raw_data, _size, tracker: MemoryTracker, target_pid, trace_all):
+def handle_munmap(cpu, raw_data, _size, tracker: MemoryTracker, target_pids, trace_all):
     event = cast(raw_data, POINTER(MunmapEvent)).contents
-    if trace_all or event.pid == target_pid:
+    if trace_all or event.pid in target_pids:
         tracker.remove_allocation(event.pid, event.start_addr, event.size)
         if WITH_LOGGER:
             event_name = RED + "[sys_munmap]" + END

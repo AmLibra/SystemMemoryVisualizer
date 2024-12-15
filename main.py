@@ -10,6 +10,37 @@ from tracers.brk import handle_brk_enter_event, handle_brk_exit_event
 from utils.runner import Runner
 from tracers.common import PAGE_SIZE
 import threading
+import time
+import subprocess
+
+
+# Global target_pids set to track live updates
+target_pids = set()
+target_pids_lock = threading.Lock()
+
+def monitor_child_pids(parent_pid):
+    """
+    Continuously monitor and add child PIDs of a parent process to target_pids.
+    Runs in a background thread.
+    """
+    print(f"Started monitoring child processes for parent PID: {parent_pid}")
+    while True:
+        try:
+            # Get current child PIDs using pgrep
+            output = subprocess.check_output(f"pgrep -P {parent_pid}", shell=True, text=True)
+            child_pids = output.strip().split()
+
+            # Update target_pids set dynamically
+            with target_pids_lock:
+                for pid in map(int, child_pids):
+                    if pid not in target_pids:
+                        print(f"Detected new child process: PID {pid}")
+                        target_pids.add(pid)
+        except subprocess.CalledProcessError:
+            # No child processes currently found
+            pass
+        time.sleep(0.5)  # Monitor interval: 500ms
+
 
 # Initialize Runner
 runner = Runner()
@@ -51,36 +82,42 @@ bpf_brk.attach_tracepoint(tp="syscalls:sys_exit_brk", fn_name="trace_brk_exit")
 print("\t Attached to sys_exit_brk")
 
 trace_all = False
-target_pid = None
 command = sys.argv[1:]
 if command[0] == "all":
     print("Tracing all mmap events...")
     trace_all = True
 else:
-    print(f"Running command: {command}")
-    target_pid = runner.run_command(command)  # Start the command and get its PID
-    print(f"Tracing mmap events for PID {target_pid}... Ctrl-C to stop.")
+    print(f"Running command: {' '.join(command)}")
+    parent_pid = runner.run_command(command)
+    with target_pids_lock:
+        target_pids.add(parent_pid)
+
+    # Start background monitoring for child PIDs
+    monitor_thread = threading.Thread(target=monitor_child_pids, args=(parent_pid,), daemon=True)
+    monitor_thread.start()
+    print(f"Tracing PIDs (live): {target_pids}")
+
 
 bpf_mmap["mmap_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_enter_event(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_enter_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_mmap["mmap_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_exit_event(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_exit_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_munmap["munmap_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_munmap(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_munmap(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_mremap["mremap_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_mremap_enter(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_mremap_enter(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_mremap["mremap_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_mremap_exit(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_mremap_exit(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_brk["brk_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_brk_enter_event(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_brk_enter_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 bpf_brk["brk_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_brk_exit_event(cpu, raw_data, size, tracker, target_pid, trace_all)
+    lambda cpu, raw_data, size: handle_brk_exit_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
 )
 
 # Start the summary thread

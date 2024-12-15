@@ -3,9 +3,9 @@ from utils.tracker import MemoryTracker
 from tracers.common import MmapEnterEvent, MmapExitEvent, GREEN, END, YELLOW, WITH_LOGGER
 
 
-def handle_enter_event(cpu, raw_data, _size, tracker: MemoryTracker, target_pid, trace_all):
+def handle_enter_event(cpu, raw_data, _size, tracker: MemoryTracker, target_pids, trace_all):
     event = cast(raw_data, POINTER(MmapEnterEvent)).contents
-    if trace_all or event.pid == target_pid:
+    if trace_all or event.pid in target_pids:
         if event.requested_addr == 0:
             tracker.mmap_event_cache_lock.acquire()
             tracker.mmap_event_cache[event.pid].append({
@@ -24,9 +24,9 @@ def handle_enter_event(cpu, raw_data, _size, tracker: MemoryTracker, target_pid,
 
        
 
-def handle_exit_event(cpu, raw_data, _size, tracker: MemoryTracker, target_pid, trace_all):
+def handle_exit_event(cpu, raw_data, _size, tracker: MemoryTracker, target_pids, trace_all):
     event = cast(raw_data, POINTER(MmapExitEvent)).contents
-    if trace_all or event.pid == target_pid:
+    if trace_all or event.pid in target_pids:
         tracker.mmap_event_cache_lock.acquire()
         if event.pid in tracker.mmap_event_cache and tracker.mmap_event_cache[event.pid]:
             enter_data = tracker.mmap_event_cache[event.pid].pop(0)

@@ -2,9 +2,9 @@ from ctypes import cast, POINTER
 from utils.tracker import MemoryTracker
 from tracers.common import MremapEnterEvent, MremapExitEvent, YELLOW, END, WITH_LOGGER, RED
 
-def handle_mremap_enter(cpu, raw_data, _size, tracker: MemoryTracker, target_pid, trace_all):
+def handle_mremap_enter(cpu, raw_data, _size, tracker: MemoryTracker, target_pids, trace_all):
     event = cast(raw_data, POINTER(MremapEnterEvent)).contents
-    if trace_all or event.pid == target_pid:
+    if trace_all or event.pid in target_pids:
         tracker.mremap_event_cache_lock.acquire()
         # simply cache the mremap event while waiting for the exit event
         tracker.mremap_event_cache[event.pid].append({
@@ -24,9 +24,9 @@ def handle_mremap_enter(cpu, raw_data, _size, tracker: MemoryTracker, target_pid
                   f"New Addr: {hex(event.new_addr):<18} | CPU: {cpu:<3}") 
 
 
-def handle_mremap_exit(cpu, raw_data, _size, tracker: MemoryTracker, target_pid, trace_all):
+def handle_mremap_exit(cpu, raw_data, _size, tracker: MemoryTracker, target_pids, trace_all):
     event = cast(raw_data, POINTER(MremapExitEvent)).contents
-    if trace_all or event.pid == target_pid:
+    if trace_all or event.pid in target_pids:
         tracker.mremap_event_cache_lock.acquire()
         if event.pid in tracker.mremap_event_cache and tracker.mremap_event_cache[event.pid]:
             enter_data = tracker.mremap_event_cache[event.pid].pop(0)

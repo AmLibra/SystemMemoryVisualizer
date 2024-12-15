@@ -1,2 +1,3 @@
 **/__pycache__/** 
 .venv
+/benchmarks/linux-6.6.1
