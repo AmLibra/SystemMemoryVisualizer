@@ -2,6 +2,7 @@ import threading
 from collections import defaultdict
 import math
 import time
+from utils.server import Server
 
 SUMMARY_INTERVAL = 1  # seconds
 
@@ -15,6 +16,12 @@ class MemoryTracker:
         self.allocations = defaultdict(list)
         self.program_breaks = defaultdict(lambda: 0)  # Current program break per PID
         self.lock = threading.Lock()  # Lock for thread safety
+        
+        self.start_time = time.time_ns()
+        self.seq_num = 0
+        
+        self.server = Server()
+        self.server.start_on_separate_thread()
 
     def add_allocation(self, pid, start_addr, size, comm):
         with self.lock:  # Ensure thread-safe access
@@ -23,13 +30,17 @@ class MemoryTracker:
     def _add_allocation(self, pid, start_addr, size, comm):
         end_addr = start_addr + size
         num_pages = math.ceil(size / self.page_size)
+
+        allocation_id = self._get_new_seq_id()
         allocation = {
+            "id": allocation_id,
             "start_addr": start_addr,
             "end_addr": end_addr,
             "size": size,
             "pages": num_pages,
             "comm": comm,
         }
+
         allocations = self.allocations[pid]
         # Find the right position to insert while maintaining sorted order
         inserted = False
@@ -49,9 +60,16 @@ class MemoryTracker:
             allocations.append(allocation)
 
         # Merge adjacent or overlapping allocations to coalesce memory ranges
-        self._merge_allocations(pid)
+        time = self._get_current_time()
+        self._merge_allocations(pid, time)
 
-    def _merge_allocations(self, pid):
+        # Get the new allocation
+        new_allocation = next((alloc for alloc in allocations if alloc["id"] == allocation_id), None)
+        if not new_allocation:
+            raise "Can't find the allocation that was just added"
+        self._send_add_allocation(new_allocation, pid, time)
+
+    def _merge_allocations(self, pid, time):
         """Merge adjacent or overlapping allocations for a process."""
         allocations = self.allocations[pid]
         merged = []
@@ -62,6 +80,12 @@ class MemoryTracker:
                 merged.append(alloc)
             else:
                 # Overlap or adjacent, merge with the last entry
+                old_id = min(merged[-1]["id"], alloc["id"])
+                new_id = max(merged[-1]["id"], alloc["id"])
+
+                self._send_remove_allocation(old_id, pid, time)
+
+                merged[-1]["id"] = new_id
                 merged[-1]["end_addr"] = max(merged[-1]["end_addr"], alloc["end_addr"])
                 merged[-1]["size"] = merged[-1]["end_addr"] - merged[-1]["start_addr"]
                 merged[-1]["pages"] = math.ceil(merged[-1]["size"] / self.page_size)
@@ -79,6 +103,8 @@ class MemoryTracker:
                 f"Start Address: {hex(start_addr)} | Size: {size}")
             return
 
+        time = self._get_current_time()
+
         allocations = self.allocations[pid]
         new_allocations = []
         unmap_end_addr = start_addr + size
@@ -92,47 +118,70 @@ class MemoryTracker:
 
             # Partial overlap: split the allocation
             if alloc["start_addr"] < start_addr and alloc["end_addr"] > unmap_end_addr:
+                self._send_remove_allocation(alloc["id"], pid, time)
+
                 # Split into two parts
-                new_allocations.append({
+                new_alloc_left = {
+                    "id": self._get_new_seq_id(),
                     "start_addr": alloc["start_addr"],
                     "end_addr": start_addr,
                     "size": start_addr - alloc["start_addr"],
                     "pages": math.ceil((start_addr - alloc["start_addr"]) / self.page_size),
                     "comm": alloc["comm"],
-                })
-                new_allocations.append({
+                }
+                new_allocations.append(new_alloc_left)
+                self._send_add_allocation(new_alloc_left, pid, time)
+
+                new_alloc_right = {
+                    "id": self._get_new_seq_id(),
                     "start_addr": unmap_end_addr,
                     "end_addr": alloc["end_addr"],
                     "size": alloc["end_addr"] - unmap_end_addr,
                     "pages": math.ceil((alloc["end_addr"] - unmap_end_addr) / self.page_size),
                     "comm": alloc["comm"],
-                })
+                }
+                new_allocations.append(new_alloc_right)
+                self._send_add_allocation(new_alloc_right, pid, time)
+
                 unmapped = True
 
             # Start of allocation overlaps
             elif alloc["start_addr"] < start_addr < alloc["end_addr"]:
-                new_allocations.append({
+                self._send_remove_allocation(alloc["id"], pid, time)
+
+                new_alloc = {
+                    "id": self._get_new_seq_id(),
                     "start_addr": alloc["start_addr"],
                     "end_addr": start_addr,
                     "size": start_addr - alloc["start_addr"],
                     "pages": math.ceil((start_addr - alloc["start_addr"]) / self.page_size),
                     "comm": alloc["comm"],
-                })
+                }
+                new_allocations.append(new_alloc)
+                self._send_add_allocation(new_alloc, pid, time)
+
                 unmapped = True
 
             # End of allocation overlaps
             elif alloc["start_addr"] < unmap_end_addr < alloc["end_addr"]:
-                new_allocations.append({
+                self._send_remove_allocation(alloc["id"], pid, time)
+
+                new_alloc = {
+                    "id": self._get_new_seq_id(),
                     "start_addr": unmap_end_addr,
                     "end_addr": alloc["end_addr"],
                     "size": alloc["end_addr"] - unmap_end_addr,
                     "pages": math.ceil((alloc["end_addr"] - unmap_end_addr) / self.page_size),
                     "comm": alloc["comm"],
-                })
+                }
+                new_allocations.append(new_alloc)
+                self._send_add_allocation(new_alloc, pid, time)
+
                 unmapped = True
 
             # Fully overlaps, remove the allocation
             else:
+                self._send_remove_allocation(alloc["id"], pid, time)
                 unmapped = True
 
         if not unmapped:
@@ -140,6 +189,37 @@ class MemoryTracker:
                 f"Start Address: {hex(start_addr)} | Size: {size}")
 
         self.allocations[pid] = new_allocations
+
+    def _send_add_allocation(self, allocation, pid, time):
+        self.server.notify_clients_threadsafe({
+            "type": "add",
+            "time": time,
+            "allocation": {
+                "id": allocation["id"],
+                "pid": pid,
+                "startAddr": allocation["start_addr"],
+                "endAddr": allocation["end_addr"],
+                "size": allocation["size"],
+                "pages": allocation["pages"],
+                "comm": allocation["comm"],
+            }
+        })
+
+    def _send_remove_allocation(self, id, pid, time):
+        self.server.notify_clients_threadsafe({
+            "type": "remove",
+            "time": time,
+            "id": id,
+            "pid": pid,
+        })
+
+    def _get_new_seq_id(self):
+        new_value = self.seq_num
+        self.seq_num += 1
+        return new_value
+
+    def _get_current_time(self):
+        return time.time_ns() - self.start_time
 
     def handle_brk(self, pid, tid, new_brk, comm):
         """Handle a brk syscall and update the program break."""
@@ -170,6 +250,11 @@ class MemoryTracker:
             time.sleep(SUMMARY_INTERVAL)  
 
     def summarize_allocations(self):
+        self.server.notify_clients_threadsafe({
+            "type": "time",
+            "time": self._get_current_time(),
+        }, save_event=False)
+
         with self.lock:  # Ensure thread-safe read access
             print("\n[Summary of Virtual Memory allocations]")
             for pid, allocations in self.allocations.items():
