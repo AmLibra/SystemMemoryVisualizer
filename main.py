@@ -123,7 +123,7 @@ bpf_brk["brk_exit_events"].open_perf_buffer(
 
 # Start the usage thread
 print(f"Starting usage thread with sleep interval of {USAGE_INTERVAL} seconds")
-usage_thread = threading.Thread(target=fetch_usage_loop, daemon=True)
+usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, target_pids_lock, target_pids], daemon=True)
 usage_thread.start()
 print("Started usage thread")
 

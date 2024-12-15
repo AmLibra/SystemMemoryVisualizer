@@ -28,7 +28,6 @@ type IncomingMessage =
   | {
       type: "usage";
       time: Time;
-      pid: number;
       rss: number;
       vm: number;
     }
