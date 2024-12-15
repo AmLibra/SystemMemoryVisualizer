@@ -2,6 +2,7 @@ import threading
 from collections import defaultdict
 import math
 import time
+from tracers.common import PAGE_SIZE
 from utils.server import Server
 
 SUMMARY_INTERVAL = 1  # seconds
@@ -193,6 +194,52 @@ class MemoryTracker:
     def send_usage(self, pid, rss, vm):
         self._send_usage(pid, self._get_current_time(), rss, vm)
 
+    def add_rss_info(self, pid, timestamp, info_per_allocation):
+        with self.lock:  # Ensure thread-safe access
+            self._add_rss_info(pid, timestamp, info_per_allocation)
+
+    def _add_rss_info(self, pid, timestamp, info_per_allocation):
+        """Add rss info about all the allocations (seen in proc maps)."""
+
+        if pid not in self.allocations:
+            print(f"[WARN] PID {pid}: No allocations found for rss info")
+            return
+
+        allocations = self.allocations[pid]
+
+        rss_info = []
+        idx = 0
+
+        # todo translate the timestamp!
+
+        # allocation contains all the allocations detected by the bpf
+        # info_per_allocation may have different allocations in it!
+        for alloc in allocations:
+            if idx == len(info_per_allocation):
+                break
+
+            start_addr, end_addr = info_per_allocation[idx]['start_addr'], info_per_allocation[idx]['end_addr']
+
+            # only detect total overlaps, if an allocation shrank or extended in the meantime, ignore the new info !!!!
+            if alloc['start_addr'] < start_addr:
+                continue
+
+            if alloc['start_addr'] == start_addr and alloc['end_addr'] == end_addr:   # force exact match!!!
+
+                rss_info.append({
+                    'id': alloc['id'],
+                    'rss': info_per_allocation[idx].rss
+                })
+
+                pass
+            else:
+                # todo non consistent, maybe log?
+                pass
+
+            idx += 1
+
+        self._send_rss(pid, timestamp, rss_info)
+
     def _send_add_allocation(self, allocation, pid, time):
         self.server.notify_clients_threadsafe({
             "type": "add",
@@ -223,6 +270,14 @@ class MemoryTracker:
             "time": timestamp,
             "rss": rss,
             "vm": vm
+        })
+
+    def _send_rss(self, pid, timestamp, rss_info):
+        self.server.notify_clients_threadsafe({
+            "type": "rss",
+            "pid": pid,
+            "time": timestamp,
+            "allocations": rss_info
         })
 
     def _get_new_seq_id(self):

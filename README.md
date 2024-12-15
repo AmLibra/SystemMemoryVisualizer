@@ -12,6 +12,13 @@ sudo apt update
 sudo apt install -y bpfcc-tools linux-headers-$(uname -r) libbpfcc-dev libbpfcc libelf-dev python3-bpfcc
 ```
 
+## Compiling C++ Shared Library
+To compile the shared library, run:
+
+```bash
+make -C usage all
+```
+
 ## Activating the Virtual Environment
 
 This project uses a Python virtual environment for dependency management[^1].
