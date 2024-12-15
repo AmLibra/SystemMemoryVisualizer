@@ -190,6 +190,9 @@ class MemoryTracker:
 
         self.allocations[pid] = new_allocations
 
+    def send_usage(self, pid, rss, vm):
+        self._send_usage(pid, self._get_current_time(), rss, vm)
+
     def _send_add_allocation(self, allocation, pid, time):
         self.server.notify_clients_threadsafe({
             "type": "add",
@@ -211,6 +214,15 @@ class MemoryTracker:
             "time": time,
             "id": id,
             "pid": pid,
+        })
+
+    def _send_usage(self, pid, timestamp, rss, vm):
+        self.server.notify_clients_threadsafe({
+            "type": "usage",
+            "pid": pid,
+            "time": timestamp,
+            "rss": rss,
+            "vm": vm
         })
 
     def _get_new_seq_id(self):

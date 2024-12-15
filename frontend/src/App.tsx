@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import Visualizer, { Allocation, ADDRESS_MAX } from "./Visualizer";
+import Visualizer, {Allocation, ADDRESS_MAX, MemoryUsageDataPoint} from "./Visualizer";
 import { COLORS } from "./util/colors";
 
 type AllocationId = number;
@@ -25,6 +25,13 @@ type IncomingMessage =
       id: AllocationId;
       pid: number;
     }
+  | {
+      type: "usage";
+      time: Time;
+      pid: number;
+      rss: number;
+      vm: number;
+    }
   | { type: "time"; time: Time }
   | { type: "catchup"; messages: IncomingMessage[] };
 
@@ -33,6 +40,7 @@ export default function App() {
     Record<AllocationId, Allocation>
   >({});
   const [maxTime, setMaxTime] = useState<Time>(1);
+  const [usages, addUsage] = useState<MemoryUsageDataPoint[]>([]);
 
   const initialized = useRef(false);
   useEffect(() => {
@@ -41,7 +49,7 @@ export default function App() {
     }
     initialized.current = true;
 
-    const socket = new WebSocket("ws://172.16.106.136:8000");
+    const socket = new WebSocket("ws://localhost:8000");
 
     function handleMessage(message: IncomingMessage) {
       const { type } = message;
@@ -78,6 +86,16 @@ export default function App() {
             };
           });
           break;
+        case "usage":
+          addUsage((usages) => [
+            ...usages,
+            {
+              time: message.time,
+              virtualMemoryUsage: message.vm,
+              physicalMemoryUsage: message.rss
+            }
+          ]);
+          break;
         case "time":
           setMaxTime((t) => Math.max(t, message.time));
           break;
@@ -103,34 +121,7 @@ export default function App() {
       <Visualizer
         allocations={Object.values(allocations)}
         maxTime={maxTime}
-        usage={[
-          // TODO Use the real data
-          {
-            time: 0,
-            virtualMemoryUsage: ADDRESS_MAX / 5,
-            physicalMemoryUsage: 0,
-          },
-          {
-            time: 10,
-            virtualMemoryUsage: ADDRESS_MAX / 10,
-            physicalMemoryUsage: ADDRESS_MAX / 10,
-          },
-          {
-            time: 25,
-            virtualMemoryUsage: (ADDRESS_MAX * 2) / 10,
-            physicalMemoryUsage: ADDRESS_MAX / 10,
-          },
-          {
-            time: 40,
-            virtualMemoryUsage: ADDRESS_MAX / 2,
-            physicalMemoryUsage: 0,
-          },
-          {
-            time: 50,
-            virtualMemoryUsage: ADDRESS_MAX / 3,
-            physicalMemoryUsage: ADDRESS_MAX / 4,
-          },
-        ]}
+        usage={usages}
         availablePhysicalMemory={ADDRESS_MAX / 4}
       />
     </div>
