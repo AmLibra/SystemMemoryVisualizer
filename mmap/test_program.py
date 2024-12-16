@@ -17,7 +17,7 @@ for file_name, size in zip(file_names, file_sizes):
 def random_mmap_access(file_name, size):
     with open(file_name, "r+b") as f:
         # Map part or all of the file into memory
-        mmap_size = random.choice([size, size // 2, 4096])  # Full, half, or 4 KB
+        mmap_size = random.choice([size, size // 2, 4096 * 16, 4096 * 32]) # Full, half, 16 pages, 32 pages
         with mmap.mmap(f.fileno(), mmap_size) as mmapped_file:
             # Perform a random write within the mapped area
             offset = random.randint(0, mmap_size - 1)
@@ -26,7 +26,7 @@ def random_mmap_access(file_name, size):
             _ = mmapped_file[offset]
 
 # Continuously map, access, and unmap memory with varied patterns
-for _ in range(100):
+for _ in range(50):
     # Choose a random file and access pattern
     file_name = random.choice(file_names)
     size = os.path.getsize(file_name)

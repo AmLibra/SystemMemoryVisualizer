@@ -2,6 +2,7 @@ import threading
 from utils.tracker import MemoryTracker
 from time import sleep
 import os
+import time
 
 USAGE_INTERVAL = 1
 
@@ -22,6 +23,7 @@ def parse_statm(pid):
 
 
 def fetch_usage_loop(tracker: MemoryTracker, target_pids_lock: threading.Lock, target_pids: set):
+    t = time.time()
     while True:
         vm, rss = 0, 0
 
@@ -33,6 +35,8 @@ def fetch_usage_loop(tracker: MemoryTracker, target_pids_lock: threading.Lock, t
 
         for pid in target_pids_local:
             _vm, _rss = parse_statm(pid)
+            if _vm == 0 and time.time() - t > 0.5:
+                tracker.clear_allocations_for_pid(pid) # wait for 0.5 seconds so that measurements are stable, otherwise will clear allocations at the start
             vm += _vm
             rss += _rss
 

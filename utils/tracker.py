@@ -259,6 +259,12 @@ class MemoryTracker:
                 # Memory region shrunk
                 self._remove_allocation(pid, new_brk, old_brk - new_brk)
 
+    def clear_allocations_for_pid(self, pid):
+        with self.lock:
+            if pid in self.allocations:
+                for alloc in self.allocations[pid]:
+                    self._remove_allocation(pid, alloc["start_addr"], alloc["size"])
+
     def summarize_allocations_loop(self):
         while True:
             self.summarize_allocations()
