@@ -227,6 +227,7 @@ function VisualizerContents({
                 usage={usage}
                 color="#5e5ce6"
                 accessor={virtualMemoryAcessor}
+                yOffset={10}
               />
               <MemoryUsageLineChart
                 xScale={xScale}
@@ -236,6 +237,7 @@ function VisualizerContents({
                 usage={usage}
                 color="#ffd50b"
                 accessor={physicalMemoryAcessor}
+                yOffset={30}
               />
             </g>
           </g>

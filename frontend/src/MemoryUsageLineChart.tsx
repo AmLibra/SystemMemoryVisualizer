@@ -10,6 +10,7 @@ export function MemoryUsageLineChart({
   maxTime,
   usage,
   accessor,
+  yOffset,
 }: {
   color: string;
   xScale: d3.ScaleLinear<number, number>;
@@ -18,9 +19,10 @@ export function MemoryUsageLineChart({
   maxTime: number;
   usage: MemoryUsageDataPoint[];
   accessor: (d: MemoryUsageDataPoint) => number;
+  yOffset: number;
 }) {
   const gradientId = useId();
-  const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const [hoverValue, setHoverValue] = useState<[number | null, number | null]>([null, null]);
   const [hoverX, setHoverX] = useState<number | null>(null);
 
   const path = useMemo(
@@ -105,30 +107,35 @@ export function MemoryUsageLineChart({
         onMouseLeave={handleMouseLeave}
       />
 
-      {/* Hover marker and text */}
+      {/* Hover marker (vertical line) */}
       {hoverX !== null && hoverValue !== null && (
         <>
-          <circle
-            cx={hoverX}
-            cy={yScaleUsage(hoverValue)}
-            r={5}
-            fill={color}
+          {/* Vertical Line at hoverX */}
+          <line
+            x1={hoverX}
+            x2={hoverX}
+            y1={0}
+            y2={hoverX}
+            stroke={color}
+            strokeWidth={2}
+            strokeDasharray="5,5"
           />
+
+          {/* Blue and Yellow Memory Usage Bubbles */}
           <text
             x={hoverX}
-            y={yScaleUsage(hoverValue) - 10}
+            y={yOffset}
             fill={color}
             textAnchor="middle"
             fontSize={12}
           >
-            {formatValue(hoverValue)}
+            {formatValue(hoverValue)} {/* Display Blue line value */}
           </text>
         </>
       )}
     </>
   );
 }
-
 
 export function virtualMemoryAcessor(d: MemoryUsageDataPoint) {
   return d.virtualMemoryUsage;
@@ -138,7 +145,7 @@ export function physicalMemoryAcessor(d: MemoryUsageDataPoint) {
     return d.physicalMemoryUsage;
 }
 
-  // Helper function to format values
+// Helper function to format values
 const formatValue = (value: number): string => {
   // Group digits in sets of 3, and add "B" at the end
   return value.toLocaleString() + " pages";
