@@ -55,7 +55,10 @@ To monitor a specific system process or command, use the following command:
 python3 ./main.py <command>
 ```
 
-## Testing programs
+## Opening the Web Interface
+To open the visualization of the allocations, follow the instructions in [frontend/README.md](frontend/README.md).
+
+## Testing Programs
 
 We provide a simple program for each supported system call to test the monitoring script. To run the test programs for a specific system call, use the following command:
 

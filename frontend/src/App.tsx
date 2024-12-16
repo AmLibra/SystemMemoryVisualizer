@@ -48,7 +48,7 @@ export default function App() {
     }
     initialized.current = true;
 
-    const socket = new WebSocket("ws://localhost:8000");
+    const socket = new WebSocket("ws://localhost:7782");
 
     function handleMessage(message: IncomingMessage) {
       const { type } = message;

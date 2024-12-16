@@ -42,7 +42,7 @@ class Server:
 
     async def _run(self):
         self._event_loop = asyncio.get_event_loop()
-        async with websockets.serve(self._handler, host='0.0.0.0', port=8000) as server:
+        async with websockets.serve(self._handler, host='0.0.0.0', port=7782) as server:
             await server.serve_forever()
 
     def _start(self):
