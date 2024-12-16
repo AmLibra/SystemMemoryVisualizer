@@ -1,7 +1,7 @@
 from ctypes import Structure, c_ulonglong, c_char
 from os import sysconf
 
-WITH_LOGGER = True
+WITH_LOGGER = False
 
 PAGE_SIZE = sysconf("SC_PAGE_SIZE")
 RED = "\033[91m"

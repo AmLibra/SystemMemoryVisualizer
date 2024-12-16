@@ -5,6 +5,11 @@ import { COLORS } from "./util/colors";
 type AllocationId = number;
 type Time = number;
 
+function getQueryParam(key: string): string | null {
+  const params = new URLSearchParams(window.location.search);
+  return params.get(key);
+}
+
 type IncomingMessage =
   | {
       type: "add";
@@ -48,7 +53,9 @@ export default function App() {
     }
     initialized.current = true;
 
-    const socket = new WebSocket("ws://localhost:7782");
+    const port = getQueryParam("port") || import.meta.env.REACT_APP_PORT || "8080";
+    const socket = new WebSocket(`ws://localhost:${port}`);
+    console.log(`Connecting to WebSocket server at ws://localhost:${port}`);
 
     function handleMessage(message: IncomingMessage) {
       const { type } = message;

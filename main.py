@@ -13,11 +13,18 @@ from tracers.common import PAGE_SIZE
 import threading
 import time
 import subprocess
-
+import os
+import signal
+import re
 
 # Global target_pids set to track live updates
 target_pids = set()
 target_pids_lock = threading.Lock()
+
+# Initialize Runner
+runner = Runner()
+# Initialize MemoryTracker
+tracker = MemoryTracker(PAGE_SIZE)
 
 def monitor_child_pids(parent_pid):
     """
@@ -43,9 +50,72 @@ def monitor_child_pids(parent_pid):
         time.sleep(0.5)  # Monitor interval: 500ms
 
 
-# Initialize Runner
-runner = Runner()
-tracker = MemoryTracker(PAGE_SIZE)
+def run_web_gui():
+    """
+    Launch the web GUI using 'npm run dev' and keep it running.
+    """
+    try:
+        frontend_dir = "./frontend" 
+        print("Starting web GUI with 'npm run dev'...")
+
+        # Allow some time for the server to start
+        time.sleep(0.5)
+        server = tracker.server
+        if hasattr(server, "_server"):
+            port = server._server.sockets[0].getsockname()[1]
+            print(f"WebSocket server is running on port: {port}")
+        else:
+            print("Server has not started yet.")
+
+        # Add the WebSocket port to the environment variables
+        env = os.environ.copy()
+        env["REACT_APP_PORT"] = str(port)
+
+        # Start 'npm run dev' as a background process
+        process = subprocess.Popen(
+            ["npm", "run", "dev"],
+            cwd=frontend_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            preexec_fn=os.setsid,
+            env=env,
+        )
+
+        print(f"Web GUI started with PID: {process.pid}")
+
+        # Monitor Vite output to find the actual port
+        vite_port = None
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+
+            print(f"[Web GUI]: {line.strip()}")
+
+            # Match the port Vite is running on
+            match = re.search(r"Local:\s+http://localhost:(\d+)", line)
+            if match:
+                vite_port = match.group(1)
+                print(f"Vite development server is running on port {vite_port}")
+                break
+
+        if vite_port:
+            print(f"Open your browser at: http://localhost:{vite_port}?port={port}")
+        else:
+            print("Failed to detect Vite server port.")
+
+        # Wait for the process to finish
+        process.wait()
+
+    except KeyboardInterrupt:
+        print("Shutting down web GUI...")
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+    except Exception as e:
+        print(f"Error: {e}")
+        if process:
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+
 
 if len(sys.argv) < 2:
     print("Usage: sudo ./main.py <command | all>")
@@ -85,7 +155,7 @@ print("\t Attached to sys_exit_brk")
 trace_all = False
 command = sys.argv[1:]
 if command[0] == "all":
-    print("Tracing all mmap events...")
+    print("Tracing events for ALL processes...")
     trace_all = True
 else:
     print(f"Running command: {' '.join(command)}")
@@ -127,13 +197,11 @@ usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, target_p
 usage_thread.start()
 print("Started usage thread")
 
-# Start the summary thread
-print(f"Starting summary thread with sleep interval of {SUMMARY_INTERVAL} seconds")
-summary_thread = threading.Thread(target=tracker.summarize_allocations_loop, daemon=True)
-summary_thread.start()
-print("Started summary thread")
+print("Tracing and reporting events... Ctrl-C to stop.")
 
-print("Tracing mmap events... Ctrl-C to stop.")
+# Start the web GUI
+web_gui_thread = threading.Thread(target=run_web_gui, daemon=True)
+web_gui_thread.start()
 
 # Handle exit and cleanup
 try:

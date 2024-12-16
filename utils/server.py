@@ -8,6 +8,7 @@ class Server:
         self.connected_clients = set()
         self._event_loop = None
         self._events = []
+        self._server = None
 
     def notify_clients_threadsafe(self, event_message, save_event=True):
         if self._event_loop is None:
@@ -42,7 +43,8 @@ class Server:
 
     async def _run(self):
         self._event_loop = asyncio.get_event_loop()
-        async with websockets.serve(self._handler, host='0.0.0.0', port=7782) as server:
+        async with websockets.serve(self._handler, host='0.0.0.0', port=0) as server:
+            self._server = server
             await server.serve_forever()
 
     def _start(self):

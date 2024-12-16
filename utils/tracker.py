@@ -3,6 +3,7 @@ from collections import defaultdict
 import math
 import time
 from utils.server import Server
+from tracers.common import WITH_LOGGER
 
 SUMMARY_INTERVAL = 1  # seconds
 
@@ -99,7 +100,8 @@ class MemoryTracker:
     def _remove_allocation(self, pid, start_addr, size):
         """Handle partial and complete unmap requests."""
         if pid not in self.allocations:
-            print(f"[WARN] PID {pid}: No allocations found for unmap request "
+            if WITH_LOGGER:
+                print(f"[WARN] PID {pid}: No allocations found for unmap request "
                 f"Start Address: {hex(start_addr)} | Size: {size}")
             return
 
@@ -185,7 +187,8 @@ class MemoryTracker:
                 unmapped = True
 
         if not unmapped:
-            print(f"[WARN] PID {pid}: Unmap request doesn't match any tracked allocation "
+            if WITH_LOGGER:
+                print(f"[WARN] PID {pid}: Unmap request doesn't match any tracked allocation "
                 f"Start Address: {hex(start_addr)} | Size: {size}")
 
         self.allocations[pid] = new_allocations
@@ -241,7 +244,8 @@ class MemoryTracker:
             # If no previous `brk` observed for this TID, initialize
             if old_brk == 0:
                 self.program_breaks[key] = new_brk
-                print(f"[INFO] Initialized heap tracking for PID {pid}, TID {tid} with base {hex(new_brk)}")
+                if WITH_LOGGER:
+                    print(f"[INFO] Initialized heap tracking for PID {pid}, TID {tid} with base {hex(new_brk)}")
                 return
 
             # Update the program break
