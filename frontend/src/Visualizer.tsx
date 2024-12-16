@@ -417,6 +417,10 @@ function AllocationRect({
                 <p>{humanFileSize(allocation.size)}</p>
               </div>
               <div>
+                <h4>Pages</h4>
+                <p>{Math.ceil(allocation.size / 4096).toLocaleString()}</p>
+              </div>
+              <div>
                 <h4>Command</h4>
                 <p>{allocation.command}</p>
               </div>
