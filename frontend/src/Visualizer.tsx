@@ -303,7 +303,7 @@ function MemoryUsageLines({
           />
 
           <text
-            x={hoverValue.x + 20}
+            x={hoverValue.x + 10}
             y={4}
             textAnchor="left"
             fontSize={14}
@@ -313,7 +313,7 @@ function MemoryUsageLines({
             {hoverValue.yVirtual.toLocaleString()} virtual pages
           </text>
           <text
-            x={hoverValue.x + 20}
+            x={hoverValue.x + 10}
             y={22}
             textAnchor="left"
             fontSize={14}

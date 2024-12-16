@@ -34,6 +34,8 @@ export function MemoryUsageLineChart({
     [xScale, transform, yScaleUsage, accessor, usage]
   );
 
+  if (usage.length === 0) return null;
+
   return (
     <>
       {/* Gradient definition */}
@@ -61,8 +63,8 @@ export function MemoryUsageLineChart({
           "L" +
           [
             xScale(maxTime) * transform.k + transform.x,
-            yScaleUsage(0),
-            xScale(0) * transform.k + transform.x,
+            yScaleUsage(accessor(usage[usage.length - 1])),
+            xScale(usage[0].time) * transform.k + transform.x,
             yScaleUsage(0),
           ].join(",")
         }
