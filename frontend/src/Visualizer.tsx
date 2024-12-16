@@ -92,18 +92,6 @@ function VisualizerContents({
     .domain([0, ADDRESS_MAX])
     .range([0, height - margin.top - margin.bottom]);
 
-  const yScaleUsage = d3
-    .scaleLinear()
-    .domain([
-      0,
-      Math.max(
-        ...usage.map((u) => u.physicalMemoryUsage),
-        ...usage.map((u) => u.virtualMemoryUsage),
-        availablePhysicalMemory
-      ),
-    ])
-    .range([USAGE_CHART_HEIGHT, 0]);
-
   const [transform, setTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
 
   const svgRef = useRef<SVGSVGElement>(null);
@@ -211,31 +199,132 @@ function VisualizerContents({
                 height - margin.top - USAGE_CHART_HEIGHT - USAGE_CHART_PADDING
               })`}
             >
-              <MemoryUsageLineChart
-                xScale={xScale}
-                yScaleUsage={yScaleUsage}
+              <MemoryUsageLines
+                usage={usage}
+                availablePhysicalMemory={availablePhysicalMemory}
                 transform={transform}
                 maxTime={maxTime}
-                usage={usage}
-                color="#5e5ce6"
-                accessor={virtualMemoryAcessor}
-                yOffset={10}
-              />
-              <MemoryUsageLineChart
                 xScale={xScale}
-                yScaleUsage={yScaleUsage}
-                transform={transform}
-                maxTime={maxTime}
-                usage={usage}
-                color="#ffd50b"
-                accessor={physicalMemoryAcessor}
-                yOffset={30}
               />
             </g>
           </g>
         </g>
       </svg>
     </>
+  );
+}
+
+function MemoryUsageLines({
+  usage,
+  availablePhysicalMemory,
+  transform,
+  maxTime,
+  xScale,
+}: {
+  usage: MemoryUsageDataPoint[];
+  availablePhysicalMemory: ByteAddressUnit;
+  transform: d3.ZoomTransform;
+  maxTime: Time;
+  xScale: d3.ScaleLinear<number, number>;
+}) {
+  const yScaleUsage = d3
+    .scaleLinear()
+    .domain([
+      0,
+      Math.max(
+        ...usage.map((u) => u.physicalMemoryUsage),
+        ...usage.map((u) => u.virtualMemoryUsage),
+        availablePhysicalMemory
+      ),
+    ])
+    .range([USAGE_CHART_HEIGHT, 0]);
+
+  const [hoverValue, setHoverValue] = useState<{
+    x: number;
+    yVirtual: number;
+    yPhysical: number;
+  } | null>(null);
+
+  return (
+    <g
+      onMouseMove={(event) => {
+        const [mouseX] = d3.pointer(event);
+        const scaledX = (mouseX - transform.x) / transform.k; // Adjust for zoom and pan
+
+        // Find the closest data point using bisector
+        const bisect = d3.bisector((d: MemoryUsageDataPoint) => d.time).right;
+        const index = bisect(usage, xScale.invert(scaledX));
+        const closestPoint = usage[index] ?? null; // Safe fallback if out of bounds
+
+        if (closestPoint) {
+          setHoverValue({
+            x: xScale(closestPoint.time) * transform.k + transform.x,
+            yVirtual: closestPoint.virtualMemoryUsage,
+            yPhysical: closestPoint.physicalMemoryUsage,
+          });
+        } else {
+          setHoverValue(null);
+        }
+      }}
+      onMouseLeave={() => setHoverValue(null)}
+    >
+      <MemoryUsageLineChart
+        xScale={xScale}
+        yScaleUsage={yScaleUsage}
+        transform={transform}
+        maxTime={maxTime}
+        usage={usage}
+        color="#5e5ce6"
+        accessor={virtualMemoryAcessor}
+      />
+      <MemoryUsageLineChart
+        xScale={xScale}
+        yScaleUsage={yScaleUsage}
+        transform={transform}
+        maxTime={maxTime}
+        usage={usage}
+        color="#ffd50b"
+        accessor={physicalMemoryAcessor}
+      />
+
+      {/* Hover marker (vertical line) */}
+      {hoverValue !== null && (
+        <>
+          {/* Vertical Line at hoverX */}
+          <line
+            x1={hoverValue.x}
+            x2={hoverValue.x}
+            y1={-10}
+            y2={USAGE_CHART_HEIGHT}
+            stroke="#cccccc"
+            strokeWidth={2}
+            strokeDasharray="5,5"
+            style={{ pointerEvents: "none" }}
+          />
+
+          <text
+            x={hoverValue.x + 20}
+            y={4}
+            textAnchor="left"
+            fontSize={14}
+            fill="#5e5ce6"
+            style={{ pointerEvents: "none" }}
+          >
+            {hoverValue.yVirtual.toLocaleString()} virtual pages
+          </text>
+          <text
+            x={hoverValue.x + 20}
+            y={22}
+            textAnchor="left"
+            fontSize={14}
+            fill="#ffd50b"
+            style={{ pointerEvents: "none" }}
+          >
+            {hoverValue.yPhysical.toLocaleString()} physical pages
+          </text>
+        </>
+      )}
+    </g>
   );
 }
 

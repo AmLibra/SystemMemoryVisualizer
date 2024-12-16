@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import Visualizer, {Allocation, ADDRESS_MAX, MemoryUsageDataPoint} from "./Visualizer";
+import Visualizer, {
+  Allocation,
+  ADDRESS_MAX,
+  MemoryUsageDataPoint,
+} from "./Visualizer";
 import { COLORS } from "./util/colors";
 
 type AllocationId = number;
@@ -99,8 +103,8 @@ export default function App() {
             {
               time: message.time,
               virtualMemoryUsage: message.vm,
-              physicalMemoryUsage: message.rss
-            }
+              physicalMemoryUsage: message.rss,
+            },
           ]);
           break;
         case "time":
