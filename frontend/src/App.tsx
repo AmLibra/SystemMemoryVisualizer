@@ -76,6 +76,7 @@ export default function App() {
                 allocatedAt: message.time,
                 freedAt: null,
                 fill: COLORS[Math.floor(Math.random() * COLORS.length)]
+                command: message.allocation.comm,
               },
             };
           });
