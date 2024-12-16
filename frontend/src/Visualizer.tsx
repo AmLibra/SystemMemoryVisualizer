@@ -372,6 +372,7 @@ function AllocationRect({
           setTooltipPosition(allocRef.current?.getBoundingClientRect() ?? null);
         }}
         onMouseOut={() => setTooltipPosition(null)}
+        onMouseLeave={() => setTooltipPosition(null)}
       />
 
       {tooltipPosition !== null &&
@@ -380,7 +381,7 @@ function AllocationRect({
             className="tooltip"
             style={{
               left: `${Math.max(tooltipPosition.x, 130)}px`,
-              top: `${tooltipPosition.y + 10}px`,
+              top: `${Math.max(tooltipPosition.y + 10, 70)}px`,
               borderColor: allocation.fill,
             }}
           >
