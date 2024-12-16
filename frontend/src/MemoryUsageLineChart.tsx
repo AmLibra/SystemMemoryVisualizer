@@ -63,7 +63,7 @@ export function MemoryUsageLineChart({
           "L" +
           [
             xScale(maxTime) * transform.k + transform.x,
-            yScaleUsage(accessor(usage[usage.length - 1])),
+            yScaleUsage(0),
             xScale(usage[0].time) * transform.k + transform.x,
             yScaleUsage(0),
           ].join(",")
