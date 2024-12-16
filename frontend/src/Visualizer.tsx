@@ -6,6 +6,7 @@ import {
   physicalMemoryAcessor,
   virtualMemoryAcessor,
 } from "./MemoryUsageLineChart";
+import { createPortal } from "react-dom";
 
 export type ByteAddressUnit = number;
 export type Time = number;
@@ -24,6 +25,7 @@ export type Allocation = {
   freedAt: Time | null;
 
   fill: string;
+  command: string;
 };
 
 export type MemoryUsageDataPoint = {
@@ -248,9 +250,21 @@ function AllocationRect({
   yScale: d3.ScaleLinear<number, number>;
   maxTime: Time;
 }) {
+  const allocRef = useRef<SVGRectElement>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    if (tooltipPosition === null || !allocRef.current) return;
+    setTooltipPosition(allocRef.current.getBoundingClientRect());
+  }, [xScale, yScale, transform]);
+
   return (
     <>
       <rect
+        ref={allocRef}
         x={transform.applyX(xScale(allocation.allocatedAt))}
         width={
           transform.k *
@@ -263,9 +277,48 @@ function AllocationRect({
         y={transform.applyY(yScale(allocation.startAddress))}
         height={Math.max(1, transform.k * yScale(allocation.size))}
         fill={allocation.fill}
-        onMouseOver={() => {}}
-        onMouseOut={() => {}}
+        onMouseOver={() => {
+          setTooltipPosition(allocRef.current?.getBoundingClientRect() ?? null);
+        }}
+        onMouseOut={() => setTooltipPosition(null)}
       />
+
+      {tooltipPosition !== null &&
+        createPortal(
+          <div
+            className="tooltip"
+            style={{
+              left: `${Math.max(tooltipPosition.x, 130)}px`,
+              top: `${tooltipPosition.y + 10}px`,
+              borderColor: allocation.fill,
+            }}
+          >
+            <h3 className="tooltip-address">
+              0x
+              {allocation.startAddress
+                .toString(16)
+                .toUpperCase()
+                .padStart(12, "0")}{" "}
+              – 0x
+              {(allocation.startAddress + allocation.size)
+                .toString(16)
+                .toUpperCase()
+                .padStart(12, "0")}
+            </h3>
+
+            <div className="tooltip-stats">
+              <div>
+                <h4>Size</h4>
+                <p>{humanFileSize(allocation.size)}</p>
+              </div>
+              <div>
+                <h4>Command</h4>
+                <p>{allocation.command}</p>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
@@ -328,4 +381,41 @@ function largestMultipleUnder(multiplier: number, x: number) {
 
 function clamp(min: number, value: number, max: number): number {
   return Math.min(Math.max(min, value), max);
+}
+
+/**
+ * Format bytes as human-readable text.
+ *
+ * Source: https://stackoverflow.com/a/14919494/4652564
+ *         (by Mark Penner, CC BY-SA 4.0)
+ *
+ * @param bytes Number of bytes.
+ * @param si True to use metric (SI) units, aka powers of 1000. False to use
+ *           binary (IEC), aka powers of 1024.
+ * @param dp Number of decimal places to display.
+ *
+ * @return Formatted string.
+ */
+function humanFileSize(bytes: number, si = false, dp = 1) {
+  const thresh = si ? 1000 : 1024;
+
+  if (Math.abs(bytes) < thresh) {
+    return bytes + " B";
+  }
+
+  const units = si
+    ? ["kB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
+    : ["KiB", "MiB", "GiB", "TiB", "PiB", "EiB", "ZiB", "YiB"];
+  let u = -1;
+  const r = 10 ** dp;
+
+  do {
+    bytes /= thresh;
+    ++u;
+  } while (
+    Math.round(Math.abs(bytes) * r) / r >= thresh &&
+    u < units.length - 1
+  );
+
+  return bytes.toFixed(dp) + " " + units[u];
 }
