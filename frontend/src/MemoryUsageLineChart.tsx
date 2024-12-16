@@ -1,4 +1,4 @@
-import { useId, useMemo } from "react";
+import { useId, useMemo, useState } from "react";
 import { MemoryUsageDataPoint } from "./Visualizer";
 import * as d3 from "d3";
 
@@ -20,6 +20,8 @@ export function MemoryUsageLineChart({
   accessor: (d: MemoryUsageDataPoint) => number;
 }) {
   const gradientId = useId();
+  const [hoverValue, setHoverValue] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState<number | null>(null);
 
   const path = useMemo(
     () =>
@@ -33,6 +35,30 @@ export function MemoryUsageLineChart({
         .curve(d3.curveStepAfter)(usage) ?? "",
     [xScale, transform, yScaleUsage, accessor, usage]
   );
+
+  // Handle mouse move to calculate hover value
+  const handleMouseMove = (event: React.MouseEvent<SVGRectElement, MouseEvent>) => {
+    const [mouseX] = d3.pointer(event);
+    const scaledX = (mouseX - transform.x) / transform.k; // Adjust for zoom and pan
+
+    // Find the closest data point using bisector
+    const bisect = d3.bisector((d: MemoryUsageDataPoint) => d.time).right;
+    const index = bisect(usage, xScale.invert(scaledX));
+    const closestPoint = usage[index] || null; // Safe fallback if out of bounds
+
+    if (closestPoint) {
+      setHoverValue(accessor(closestPoint));
+      setHoverX(xScale(closestPoint.time) * transform.k + transform.x);
+    } else {
+      setHoverValue(null);
+      setHoverX(null);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setHoverValue(null);
+    setHoverX(null);
+  };
 
   return (
     <>
@@ -68,14 +94,52 @@ export function MemoryUsageLineChart({
         }
         fill={`url(#${gradientId})`}
       />
+
+      {/* Hover overlay */}
+      <rect
+        width="100%"
+        height="100%"
+        fill="none"
+        pointerEvents="all"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+      />
+
+      {/* Hover marker and text */}
+      {hoverX !== null && hoverValue !== null && (
+        <>
+          <circle
+            cx={hoverX}
+            cy={yScaleUsage(hoverValue)}
+            r={5}
+            fill={color}
+          />
+          <text
+            x={hoverX}
+            y={yScaleUsage(hoverValue) - 10}
+            fill={color}
+            textAnchor="middle"
+            fontSize={12}
+          >
+            {formatValue(hoverValue)}
+          </text>
+        </>
+      )}
     </>
   );
 }
+
 
 export function virtualMemoryAcessor(d: MemoryUsageDataPoint) {
   return d.virtualMemoryUsage;
 }
 
 export function physicalMemoryAcessor(d: MemoryUsageDataPoint) {
-  return d.physicalMemoryUsage;
+    return d.physicalMemoryUsage;
 }
+
+  // Helper function to format values
+const formatValue = (value: number): string => {
+  // Group digits in sets of 3, and add "B" at the end
+  return value.toLocaleString() + " pages";
+};

@@ -3,7 +3,7 @@
 import sys
 from bcc import BPF
 from utils.tracker import MemoryTracker, SUMMARY_INTERVAL
-from usage.usage import USAGE_INTERVAL, fetch_usage_loop
+from usage.usage import USAGE_INTERVAL, fetch_usage_loop, fetch_total_usage_loop
 from tracers.mmap import handle_enter_event, handle_exit_event
 from tracers.munmap import handle_munmap
 from tracers.mremap import handle_mremap_enter, handle_mremap_exit
@@ -193,7 +193,10 @@ bpf_brk["brk_exit_events"].open_perf_buffer(
 
 # Start the usage thread
 print(f"Starting usage thread with sleep interval of {USAGE_INTERVAL} seconds")
-usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, target_pids_lock, target_pids], daemon=True)
+if trace_all:
+    usage_thread = threading.Thread(target=fetch_total_usage_loop, args=[tracker], daemon=True)
+else:
+    usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, target_pids_lock, target_pids], daemon=True)
 usage_thread.start()
 print("Started usage thread")
 

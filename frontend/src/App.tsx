@@ -128,7 +128,7 @@ export default function App() {
         allocations={Object.values(allocations)}
         maxTime={maxTime}
         usage={usages}
-        availablePhysicalMemory={ADDRESS_MAX / 4}
+        availablePhysicalMemory={0}
       />
     </div>
   );
