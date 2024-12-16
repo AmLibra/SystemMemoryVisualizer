@@ -15,7 +15,7 @@ export type Time = number;
  * 48 bits here comes from the fact that current AMD64 CPUs support
  * 48-bit virtual addresses (not 64-bit).
  */
-export const ADDRESS_MAX: ByteAddressUnit = 2 ** 48 - 1;
+const ADDRESS_MAX: ByteAddressUnit = 2 ** 48 - 1;
 
 export type Allocation = {
   startAddress: ByteAddressUnit;
@@ -41,6 +41,8 @@ function formatAddress(pageNumber: ByteAddressUnit) {
 
 export default function Visualizer(props: {
   allocations: Allocation[];
+  minAddress: ByteAddressUnit | null;
+  maxAddress: ByteAddressUnit | null;
   maxTime: Time;
   usage: MemoryUsageDataPoint[];
   availablePhysicalMemory: ByteAddressUnit;
@@ -70,6 +72,8 @@ const margin = {
 
 function VisualizerContents({
   allocations,
+  minAddress,
+  maxAddress,
   maxTime,
   width,
   height,
@@ -77,6 +81,8 @@ function VisualizerContents({
   availablePhysicalMemory,
 }: {
   allocations: Allocation[];
+  minAddress: ByteAddressUnit | null;
+  maxAddress: ByteAddressUnit | null;
   maxTime: Time;
   width: number;
   height: number;
@@ -87,10 +93,17 @@ function VisualizerContents({
     .scaleLinear()
     .domain([0, maxTime])
     .range([0, width - margin.left - margin.right]);
-  const yScale = d3
-    .scaleLinear()
-    .domain([0, ADDRESS_MAX])
-    .range([0, height - margin.top - margin.bottom]);
+  const yScale = useMemo(
+    () =>
+      d3
+        .scaleLinear()
+        .domain([
+          minAddress === null ? 0 : minAddress,
+          maxAddress === null ? ADDRESS_MAX : maxAddress,
+        ])
+        .range([0, height - margin.top - margin.bottom]),
+    [minAddress, maxAddress]
+  );
 
   const [transform, setTransform] = useState<d3.ZoomTransform>(d3.zoomIdentity);
 
@@ -115,7 +128,7 @@ function VisualizerContents({
     svg.call(zoom);
   }, [width, height]);
 
-  const ticks = useAddressTicks(height, transform);
+  const ticks = useAddressTicks(height, transform, yScale, minAddress, maxAddress);
 
   return (
     <>
@@ -366,7 +379,7 @@ function AllocationRect({
           )
         }
         y={transform.applyY(yScale(allocation.startAddress))}
-        height={Math.max(1, transform.k * yScale(allocation.size))}
+        height={Math.max(1, transform.k * (yScale(allocation.startAddress + allocation.size) - yScale(allocation.startAddress)))}
         fill={allocation.fill}
         onMouseOver={() => {
           setTooltipPosition(allocRef.current?.getBoundingClientRect() ?? null);
@@ -417,13 +430,12 @@ function AllocationRect({
 
 function useAddressTicks(
   height: number,
-  transform: d3.ZoomTransform
+  transform: d3.ZoomTransform,
+  yScale: d3.ScaleLinear<number, number>,
+  minAddress: ByteAddressUnit | null,
+  maxAddress: ByteAddressUnit | null
 ): { value: number; type: "default" | "minor" | "major" }[] {
   return useMemo(() => {
-    const yScale = d3
-      .scaleLinear()
-      .domain([0, ADDRESS_MAX])
-      .range([0, height - margin.top - margin.bottom]);
     const minVisibleAddress: ByteAddressUnit = clamp(
       0,
       Math.floor(yScale.invert(transform.invertY(0))),
@@ -442,7 +454,7 @@ function useAddressTicks(
     const VALUES_PER_PIXEL = 1 / 50;
 
     const increment =
-      2 ** Math.floor(Math.log2(ADDRESS_MAX / zoomedHeight / VALUES_PER_PIXEL));
+      2 ** Math.floor(Math.log2((((maxAddress ?? ADDRESS_MAX) - (minAddress ?? 0)) / zoomedHeight / VALUES_PER_PIXEL)));
 
     const result: { value: number; type: "default" | "minor" | "major" }[] = [];
     for (
@@ -464,7 +476,7 @@ function useAddressTicks(
     }
 
     return result;
-  }, [height, transform]);
+  }, [height, transform, yScale]);
 }
 
 function largestMultipleUnder(multiplier: number, x: number) {

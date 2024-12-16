@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Visualizer, {
   Allocation,
-  ADDRESS_MAX,
   MemoryUsageDataPoint,
+  ByteAddressUnit,
 } from "./Visualizer";
 import { COLORS } from "./util/colors";
 
@@ -44,6 +44,9 @@ type IncomingMessage =
   | { type: "catchup"; messages: IncomingMessage[] };
 
 export default function App() {
+  const [minAddress, setMinAddress] = useState<ByteAddressUnit | null>(null);
+  const [maxAddress, setMaxAddress] = useState<ByteAddressUnit | null>(null);
+
   const [allocations, setAllocations] = useState<
     Record<AllocationId, Allocation>
   >({});
@@ -70,6 +73,17 @@ export default function App() {
 
       switch (type) {
         case "add":
+          setMinAddress((min) =>
+            min === null
+              ? message.allocation.startAddr
+              : Math.min(min, message.allocation.startAddr)
+          );
+          setMaxAddress((max) =>
+            max === null
+              ? message.allocation.endAddr
+              : Math.max(max, message.allocation.endAddr)
+          );
+
           setAllocations((allocations) => {
             const { id } = message.allocation;
             return {
@@ -131,6 +145,8 @@ export default function App() {
 
       <Visualizer
         allocations={Object.values(allocations)}
+        minAddress={minAddress}
+        maxAddress={maxAddress}
         maxTime={maxTime}
         usage={usages}
         availablePhysicalMemory={0}
