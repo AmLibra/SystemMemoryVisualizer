@@ -175,23 +175,13 @@ function VisualizerContents({
           <g>
             {/* Allocations */}
             {allocations.map((allocation, index) => (
-              <rect
+              <AllocationRect
                 key={index}
-                x={transform.applyX(xScale(allocation.allocatedAt))}
-                width={
-                  transform.k *
-                  Math.max(
-                    0,
-                    xScale(allocation.freedAt ?? maxTime) -
-                      xScale(allocation.allocatedAt)
-                  )
-                }
-                y={transform.applyY(yScale(allocation.startAddress))}
-                height={Math.max(
-                  1,
-                  transform.k * yScale(allocation.size)
-                )}
-                fill={allocation.fill}
+                allocation={allocation}
+                transform={transform}
+                xScale={xScale}
+                yScale={yScale}
+                maxTime={maxTime}
               />
             ))}
           </g>
@@ -241,6 +231,41 @@ function VisualizerContents({
           </g>
         </g>
       </svg>
+    </>
+  );
+}
+
+function AllocationRect({
+  allocation,
+  transform,
+  xScale,
+  yScale,
+  maxTime,
+}: {
+  allocation: Allocation;
+  transform: d3.ZoomTransform;
+  xScale: d3.ScaleLinear<number, number>;
+  yScale: d3.ScaleLinear<number, number>;
+  maxTime: Time;
+}) {
+  return (
+    <>
+      <rect
+        x={transform.applyX(xScale(allocation.allocatedAt))}
+        width={
+          transform.k *
+          Math.max(
+            0,
+            xScale(allocation.freedAt ?? maxTime) -
+              xScale(allocation.allocatedAt)
+          )
+        }
+        y={transform.applyY(yScale(allocation.startAddress))}
+        height={Math.max(1, transform.k * yScale(allocation.size))}
+        fill={allocation.fill}
+        onMouseOver={() => {}}
+        onMouseOut={() => {}}
+      />
     </>
   );
 }
