@@ -75,7 +75,7 @@ export default function App() {
                 size: message.allocation.endAddr - message.allocation.startAddr,
                 allocatedAt: message.time,
                 freedAt: null,
-                fill: COLORS[Math.floor(Math.random() * COLORS.length)]
+                fill: COLORS[Math.floor(Math.random() * COLORS.length)],
                 command: message.allocation.comm,
               },
             };
