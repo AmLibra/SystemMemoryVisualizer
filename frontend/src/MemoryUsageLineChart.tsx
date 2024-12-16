@@ -10,7 +10,6 @@ export function MemoryUsageLineChart({
   maxTime,
   usage,
   accessor,
-  yOffset,
 }: {
   color: string;
   xScale: d3.ScaleLinear<number, number>;
@@ -19,11 +18,8 @@ export function MemoryUsageLineChart({
   maxTime: number;
   usage: MemoryUsageDataPoint[];
   accessor: (d: MemoryUsageDataPoint) => number;
-  yOffset: number;
 }) {
   const gradientId = useId();
-  const [hoverValue, setHoverValue] = useState<[number | null, number | null]>([null, null]);
-  const [hoverX, setHoverX] = useState<number | null>(null);
 
   const path = useMemo(
     () =>
@@ -38,29 +34,7 @@ export function MemoryUsageLineChart({
     [xScale, transform, yScaleUsage, accessor, usage]
   );
 
-  // Handle mouse move to calculate hover value
-  const handleMouseMove = (event: React.MouseEvent<SVGRectElement, MouseEvent>) => {
-    const [mouseX] = d3.pointer(event);
-    const scaledX = (mouseX - transform.x) / transform.k; // Adjust for zoom and pan
-
-    // Find the closest data point using bisector
-    const bisect = d3.bisector((d: MemoryUsageDataPoint) => d.time).right;
-    const index = bisect(usage, xScale.invert(scaledX));
-    const closestPoint = usage[index] || null; // Safe fallback if out of bounds
-
-    if (closestPoint) {
-      setHoverValue(accessor(closestPoint));
-      setHoverX(xScale(closestPoint.time) * transform.k + transform.x);
-    } else {
-      setHoverValue(null);
-      setHoverX(null);
-    }
-  };
-
-  const handleMouseLeave = () => {
-    setHoverValue(null);
-    setHoverX(null);
-  };
+  if (usage.length === 0) return null;
 
   return (
     <>
@@ -89,8 +63,8 @@ export function MemoryUsageLineChart({
           "L" +
           [
             xScale(maxTime) * transform.k + transform.x,
-            yScaleUsage(0),
-            xScale(0) * transform.k + transform.x,
+            yScaleUsage(accessor(usage[usage.length - 1])),
+            xScale(usage[0].time) * transform.k + transform.x,
             yScaleUsage(0),
           ].join(",")
         }
@@ -98,55 +72,15 @@ export function MemoryUsageLineChart({
       />
 
       {/* Hover overlay */}
-      <rect
-        width="100%"
-        height="100%"
-        fill="none"
-        pointerEvents="all"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-      />
-
-      {/* Hover marker (vertical line) */}
-      {hoverX !== null && hoverValue !== null && (
-        <>
-          {/* Vertical Line at hoverX */}
-          <line
-            x1={hoverX}
-            x2={hoverX}
-            y1={0}
-            y2={hoverX}
-            stroke={color}
-            strokeWidth={2}
-            strokeDasharray="5,5"
-          />
-
-          {/* Blue and Yellow Memory Usage Bubbles */}
-          <text
-            x={hoverX}
-            y={yOffset}
-            fill={color}
-            textAnchor="middle"
-            fontSize={12}
-          >
-            {formatValue(hoverValue)} {/* Display Blue line value */}
-          </text>
-        </>
-      )}
+      <rect width="100%" height="100%" fill="none" pointerEvents="all" />
     </>
   );
 }
 
-export function virtualMemoryAcessor(d: MemoryUsageDataPoint) {
+export function virtualMemoryAccessor(d: MemoryUsageDataPoint) {
   return d.virtualMemoryUsage;
 }
 
-export function physicalMemoryAcessor(d: MemoryUsageDataPoint) {
-    return d.physicalMemoryUsage;
+export function physicalMemoryAccessor(d: MemoryUsageDataPoint) {
+  return d.physicalMemoryUsage;
 }
-
-// Helper function to format values
-const formatValue = (value: number): string => {
-  // Group digits in sets of 3, and add "B" at the end
-  return value.toLocaleString() + " pages";
-};
