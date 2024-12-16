@@ -75,16 +75,10 @@ export function MemoryUsageLineChart({
   );
 }
 
-export function virtualMemoryAcessor(d: MemoryUsageDataPoint) {
+export function virtualMemoryAccessor(d: MemoryUsageDataPoint) {
   return d.virtualMemoryUsage;
 }
 
-export function physicalMemoryAcessor(d: MemoryUsageDataPoint) {
+export function physicalMemoryAccessor(d: MemoryUsageDataPoint) {
   return d.physicalMemoryUsage;
 }
-
-// Helper function to format values
-const formatValue = (value: number): string => {
-  // Group digits in sets of 3, and add "B" at the end
-  return value.toLocaleString() + " pages";
-};

@@ -3,8 +3,8 @@ import * as d3 from "d3";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   MemoryUsageLineChart,
-  physicalMemoryAcessor,
-  virtualMemoryAcessor,
+  physicalMemoryAccessor,
+  virtualMemoryAccessor,
 } from "./MemoryUsageLineChart";
 import { createPortal } from "react-dom";
 
@@ -275,7 +275,7 @@ function MemoryUsageLines({
         maxTime={maxTime}
         usage={usage}
         color="#5e5ce6"
-        accessor={virtualMemoryAcessor}
+        accessor={virtualMemoryAccessor}
       />
       <MemoryUsageLineChart
         xScale={xScale}
@@ -284,7 +284,7 @@ function MemoryUsageLines({
         maxTime={maxTime}
         usage={usage}
         color="#ffd50b"
-        accessor={physicalMemoryAcessor}
+        accessor={physicalMemoryAccessor}
       />
 
       {/* Hover marker (vertical line) */}
