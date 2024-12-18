@@ -30,9 +30,6 @@ def fetch_usage_loop(tracker: MemoryTracker, target_pids_lock: threading.Lock, t
         with target_pids_lock:
             target_pids_local = target_pids.copy()
 
-        if len(target_pids_local) == 0:
-            return
-
         for pid in target_pids_local:
             _vm, _rss = parse_statm(pid)
             if _vm == 0 and time.time() - t > 0.5:

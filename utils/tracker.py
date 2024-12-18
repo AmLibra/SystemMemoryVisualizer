@@ -7,28 +7,26 @@ from tracers.common import WITH_LOGGER
 
 SUMMARY_INTERVAL = 1  # seconds
 
+
 class MemoryTracker:
     def __init__(self, page_size):
         self.page_size = page_size
-        self.mmap_event_cache_lock = threading.Lock()
-        self.mmap_event_cache = defaultdict(list)
-        self.mremap_event_cache_lock = threading.Lock()
-        self.mremap_event_cache = defaultdict(list)
         self.allocations = defaultdict(list)
         self.program_breaks = defaultdict(lambda: 0)  # Current program break per PID
         self.lock = threading.Lock()  # Lock for thread safety
-        
+
         self.start_time = time.time_ns()
+        self.start_time_kernel = 0
         self.seq_num = 0
-        
+
         self.server = Server()
         self.server.start_on_separate_thread()
 
-    def add_allocation(self, pid, start_addr, size, comm):
+    def add_allocation(self, pid, ts, start_addr, size, comm):
         with self.lock:  # Ensure thread-safe access
-            self._add_allocation(pid, start_addr, size, comm)
+            self._add_allocation(pid, ts, start_addr, size, comm)
 
-    def _add_allocation(self, pid, start_addr, size, comm):
+    def _add_allocation(self, pid, ts, start_addr, size, comm):
         end_addr = start_addr + size
         num_pages = math.ceil(size / self.page_size)
 
@@ -61,7 +59,7 @@ class MemoryTracker:
             allocations.append(allocation)
 
         # Merge adjacent or overlapping allocations to coalesce memory ranges
-        time = self._get_current_time()
+        time = self._get_relative_time(ts)
         self._merge_allocations(pid, time)
 
         # Get the new allocation
@@ -93,20 +91,21 @@ class MemoryTracker:
 
         self.allocations[pid] = merged
 
-    def remove_allocation(self, pid, start_addr, size):
+    def remove_allocation(self, pid, ts, start_addr, size):
         with self.lock:  # Ensure thread-safe access
-            self._remove_allocation(pid, start_addr, size)
+            self._remove_allocation(pid, ts, start_addr, size)
 
-    def _remove_allocation(self, pid, start_addr, size):
+    def _remove_allocation(self, pid, ts, start_addr, size):
         """Handle partial and complete unmap requests."""
         if pid not in self.allocations:
             if WITH_LOGGER:
                 print(f"[WARN] PID {pid}: No allocations found for unmap request "
-                f"Start Address: {hex(start_addr)} | Size: {size}")
+                      f"Start Address: {hex(start_addr)} | Size: {size}")
             return
 
-        time = self._get_current_time()
+        time = self._get_relative_time(ts)
 
+        # if size == 0 remove the whole allocation
         allocations = self.allocations[pid]
         new_allocations = []
         unmap_end_addr = start_addr + size
@@ -114,6 +113,10 @@ class MemoryTracker:
 
         for alloc in allocations:
             # No overlap, keep the allocation as-is
+            if alloc['start_addr'] == start_addr and size == 0:
+                unmapped = True
+                continue
+
             if alloc["end_addr"] <= start_addr or alloc["start_addr"] >= unmap_end_addr:
                 new_allocations.append(alloc)
                 continue
@@ -189,7 +192,7 @@ class MemoryTracker:
         if not unmapped:
             if WITH_LOGGER:
                 print(f"[WARN] PID {pid}: Unmap request doesn't match any tracked allocation "
-                f"Start Address: {hex(start_addr)} | Size: {size}")
+                      f"Start Address: {hex(start_addr)} | Size: {size}")
 
         self.allocations[pid] = new_allocations
 
@@ -235,7 +238,13 @@ class MemoryTracker:
     def _get_current_time(self):
         return time.time_ns() - self.start_time
 
-    def handle_brk(self, pid, tid, new_brk, comm):
+    def _get_relative_time(self, ts):
+        if self.start_time_kernel == 0:
+            self.start_time_kernel = ts
+            self.start_time = time.time_ns()
+        return ts - self.start_time_kernel
+
+    def handle_brk(self, pid, ts, tid, new_brk, comm):
         """Handle a brk syscall and update the program break."""
         key = (pid, tid)  # Unique key for process and thread
         with self.lock:  # Ensure thread-safe access
@@ -254,21 +263,22 @@ class MemoryTracker:
             # Adjust allocations based on the change in the program break
             if new_brk > old_brk:
                 # Memory region expanded
-                self._add_allocation(pid, old_brk, new_brk - old_brk, comm)
+                self._add_allocation(pid, ts, old_brk, new_brk - old_brk, comm)
             elif new_brk < old_brk:
                 # Memory region shrunk
-                self._remove_allocation(pid, new_brk, old_brk - new_brk)
+                self._remove_allocation(pid, ts, new_brk, old_brk - new_brk)
 
     def clear_allocations_for_pid(self, pid):
+        ts = time.time_ns() - self.start_time + self.start_time_kernel
         with self.lock:
             if pid in self.allocations:
                 for alloc in self.allocations[pid]:
-                    self._remove_allocation(pid, alloc["start_addr"], alloc["size"])
+                    self._remove_allocation(pid, ts, alloc["start_addr"], alloc["size"])
 
     def summarize_allocations_loop(self):
         while True:
             self.summarize_allocations()
-            time.sleep(SUMMARY_INTERVAL)  
+            time.sleep(SUMMARY_INTERVAL)
 
     def summarize_allocations(self):
         self.server.notify_clients_threadsafe({
@@ -277,19 +287,22 @@ class MemoryTracker:
         }, save_event=False)
 
         with self.lock:  # Ensure thread-safe read access
-            print("\n[Summary of Virtual Memory allocations]")
+            print("\n[Supmmary of Virtual Memory allocations]")
             for pid, allocations in self.allocations.items():
                 total_size = sum(a["size"] for a in allocations)
                 total_pages = sum(a["pages"] for a in allocations)
-                print(f"PID: {pid} | Total Allocations: {len(allocations)} | Total Size (B): {total_size:<10} | Total Pages: {total_pages:<5}")
+                print(
+                    f"PID: {pid} | Total Allocations: {len(allocations)} | Total Size (B): {total_size:<10} | Total Pages: {total_pages:<5}")
                 for alloc in allocations:
                     print(f"    Address Range: {hex(alloc['start_addr']):} - {hex(alloc['end_addr']):<30} | "
-                        f"Size (B): {alloc['size']:<10} | Pages: {alloc['pages']:<10} | Command: {alloc['comm']}")
+                          f"Size (B): {alloc['size']:<10} | Pages: {alloc['pages']:<10} | Command: {alloc['comm']}")
             print("\n---")
             print("Number of observed Processes: ", len(set(self.allocations.keys())))
             size = sum(sum(a["size"] for a in allocations) for allocations in self.allocations.values())
             formatted_size = "{:.2f}".format(size / 1024 / 1024)
-            print("Number of observed Allocations: ", sum(len(allocations) for allocations in self.allocations.values()))
+            print("Number of observed Allocations: ",
+                  sum(len(allocations) for allocations in self.allocations.values()))
             print("Total Allocated Virtual Memory: ", formatted_size, "MB")
             formatted_pg_size = "{}".format(int(self.page_size / 1024))
-            print("Total Allocated Pages (" + formatted_pg_size + " KB): ", sum(sum(a["pages"] for a in allocations) for allocations in self.allocations.values()))
+            print("Total Allocated Pages (" + formatted_pg_size + " KB): ",
+                  sum(sum(a["pages"] for a in allocations) for allocations in self.allocations.values()))

@@ -1,61 +1,52 @@
 #!/usr/bin/python3
 
-import sys
 from bcc import BPF
-from utils.tracker import MemoryTracker, SUMMARY_INTERVAL
-from usage.usage import USAGE_INTERVAL, fetch_usage_loop, fetch_total_usage_loop
-from tracers.mmap import handle_enter_event, handle_exit_event
-from tracers.munmap import handle_munmap
-from tracers.mremap import handle_mremap_enter, handle_mremap_exit
-from tracers.brk import handle_brk_enter_event, handle_brk_exit_event
+from tracers.event_cache import EventCache
+from tracers.events import handle_event, set_tracker_pid
+from utils.tracker import MemoryTracker
+from usage.usage import USAGE_INTERVAL, fetch_usage_loop
 from utils.runner import Runner
 from tracers.common import PAGE_SIZE
 import threading
 import time
 import subprocess
 import os
-import signal
 import re
 
-# Global target_pids set to track live updates
-target_pids = set()
-target_pids_lock = threading.Lock()
 
 # Initialize Runner
 runner = Runner()
 # Initialize MemoryTracker
 tracker = MemoryTracker(PAGE_SIZE)
+# Create event cache
+event_cache = EventCache()
+# Create tracked PID set
+tracked_pids_lock = threading.Lock()
+tracked_pids = set()
 
-def monitor_child_pids(parent_pid):
-    """
-    Continuously monitor and add child PIDs of a parent process to target_pids.
-    Runs in a background thread.
-    """
-    print(f"Started monitoring child processes for parent PID: {parent_pid}")
-    while True:
-        try:
-            # Get current child PIDs using pgrep
-            output = subprocess.check_output(f"pgrep -P {parent_pid}", shell=True, text=True)
-            child_pids = output.strip().split()
 
-            # Update target_pids set dynamically
-            with target_pids_lock:
-                for pid in map(int, child_pids):
-                    if pid not in target_pids:
-                        print(f"Detected new child process: PID {pid}")
-                        target_pids.add(pid)
-        except subprocess.CalledProcessError:
-            # No child processes currently found
-            pass
-        time.sleep(0.5)  # Monitor interval: 500ms
+import threading, sys, traceback
 
+def dumpstacks(signal, frame):
+    id2name = dict([(th.ident, th.name) for th in threading.enumerate()])
+    code = []
+    for threadId, stack in sys._current_frames().items():
+        code.append("\n# Thread: %s(%d)" % (id2name.get(threadId,""), threadId))
+        for filename, lineno, name, line in traceback.extract_stack(stack):
+            code.append('File: "%s", line %d, in %s' % (filename, lineno, name))
+            if line:
+                code.append("  %s" % (line.strip()))
+    print("\n".join(code))
+
+import signal
+signal.signal(signal.SIGUSR1, dumpstacks)
 
 def run_web_gui():
     """
     Launch the web GUI using 'npm run dev' and keep it running.
     """
     try:
-        frontend_dir = "./frontend" 
+        frontend_dir = os.path.dirname(os.path.realpath(__file__)) + "/frontend"
         print("Starting web GUI with 'npm run dev'...")
 
         # Allow some time for the server to start
@@ -122,81 +113,11 @@ if len(sys.argv) < 2:
     sys.exit(1)
 
 print(f"Page size: {PAGE_SIZE} bytes")
-print("Initializing BPF programs...")
 
-bpf_mmap = BPF(src_file="mmap/trace_mmap.c")
-print("\t Loaded mmap BPF program successfully")
-
-bpf_munmap = BPF(src_file="munmap/trace_munmap.c")
-print("\t Loaded munmap BPF program successfully")
-
-bpf_mremap = BPF(src_file="mremap/trace_mremap.c")
-print("\t Loaded mremap BPF program successfully")
-
-bpf_brk = BPF(src_file="brk/trace_brk.c")
-
-# Attach tracepoints
-print("Attaching tracepoints...")
-bpf_mmap.attach_tracepoint(tp="syscalls:sys_enter_mmap", fn_name="trace_mmap_enter")
-print("\t Attached to sys_enter_mmap")
-bpf_mmap.attach_tracepoint(tp="syscalls:sys_exit_mmap", fn_name="trace_mmap_exit")
-print("\t Attached to sys_exit_mmap")
-bpf_munmap.attach_tracepoint(tp="syscalls:sys_enter_munmap", fn_name="trace_munmap")
-print("\t Attached to sys_enter_munmap")
-bpf_mremap.attach_tracepoint(tp="syscalls:sys_enter_mremap", fn_name="trace_mremap_enter")
-print("\t Attached to sys_enter_mremap")
-bpf_mremap.attach_tracepoint(tp="syscalls:sys_exit_mremap", fn_name="trace_mremap_exit")
-print("\t Attached to sys_exit_mremap")
-bpf_brk.attach_tracepoint(tp="syscalls:sys_enter_brk", fn_name="trace_brk_enter")
-print("\t Attached to sys_enter_brk")
-bpf_brk.attach_tracepoint(tp="syscalls:sys_exit_brk", fn_name="trace_brk_exit")
-print("\t Attached to sys_exit_brk")
-
-trace_all = False
-command = sys.argv[1:]
-if command[0] == "all":
-    print("Tracing events for ALL processes...")
-    trace_all = True
-else:
-    print(f"Running command: {' '.join(command)}")
-    parent_pid = runner.run_command(command)
-    with target_pids_lock:
-        target_pids.add(parent_pid)
-
-    # Start background monitoring for child PIDs
-    monitor_thread = threading.Thread(target=monitor_child_pids, args=(parent_pid,), daemon=True)
-    monitor_thread.start()
-    print(f"Tracing PIDs (live): {target_pids}")
-
-
-bpf_mmap["mmap_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_enter_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_mmap["mmap_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_exit_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_munmap["munmap_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_munmap(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_mremap["mremap_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_mremap_enter(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_mremap["mremap_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_mremap_exit(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_brk["brk_enter_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_brk_enter_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
-bpf_brk["brk_exit_events"].open_perf_buffer(
-    lambda cpu, raw_data, size: handle_brk_exit_event(cpu, raw_data, size, tracker, target_pids.copy(), trace_all)
-)
 
 # Start the usage thread
 print(f"Starting usage thread with sleep interval of {USAGE_INTERVAL} seconds")
-if trace_all:
-    usage_thread = threading.Thread(target=fetch_total_usage_loop, args=[tracker], daemon=True)
-else:
-    usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, target_pids_lock, target_pids], daemon=True)
+usage_thread = threading.Thread(target=fetch_usage_loop, args=[tracker, tracked_pids_lock, tracked_pids], daemon=True)
 usage_thread.start()
 print("Started usage thread")
 
@@ -206,13 +127,49 @@ print("Tracing and reporting events... Ctrl-C to stop.")
 web_gui_thread = threading.Thread(target=run_web_gui, daemon=True)
 web_gui_thread.start()
 
+
+print("Initializing BPF programs...")
+
+bpf_file = BPF(src_file="bpf.c")
+print("\t Loaded BPF programs successfully")
+
+# Attach tracepoints
+print("Attaching tracepoints...")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_mmap", fn_name="trace_mmap_enter")
+print("\t Attached to sys_enter_mmap")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_mmap", fn_name="trace_mmap_exit")
+print("\t Attached to sys_exit_mmap")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_munmap", fn_name="trace_munmap")
+print("\t Attached to sys_enter_munmap")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_mremap", fn_name="trace_mremap_enter")
+print("\t Attached to sys_enter_mremap")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_mremap", fn_name="trace_mremap_exit")
+print("\t Attached to sys_exit_mremap")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_brk", fn_name="trace_brk_enter")
+print("\t Attached to sys_enter_brk")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_brk", fn_name="trace_brk_exit")
+print("\t Attached to sys_exit_brk")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_clone", fn_name="trace_clone_enter")
+print("\t Attached to sys_enter_clone")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_clone", fn_name="trace_clone_exit")
+print("\t Attached to sys_exit_clone")
+
+set_tracker_pid(os.getpid())
+
+bpf_file["events"].open_ring_buffer(
+    lambda cpu, raw_data, size: handle_event(cpu, raw_data, size, tracker, tracked_pids, event_cache)
+)
+
+# tracked_pids.add(os.getpid())
+
+command = sys.argv[1:]
+print(f"Running command: {' '.join(command)}")
+parent_pid = runner.run_command(command)
+
 # Handle exit and cleanup
 try:
     while True:
-        bpf_mmap.perf_buffer_poll(timeout=100)
-        bpf_munmap.perf_buffer_poll(timeout=100)
-        bpf_mremap.perf_buffer_poll(timeout=100)
-        bpf_brk.perf_buffer_poll(timeout=100)
+        bpf_file.ring_buffer_poll()
 except KeyboardInterrupt:
     print("Exiting...")
 finally:
