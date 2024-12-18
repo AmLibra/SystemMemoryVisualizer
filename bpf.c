@@ -248,5 +248,106 @@ int trace_clone_exit(struct tracepoint__syscalls__sys_exit_clone *ctx) {
     return 0;
 }
 
+
+// ==== clone3 ==========================================================================
+
+struct clone3_enter_data_t {
+    u64 type;
+    u64 pid_and_tid;           // Process ID << 32 | Thread ID
+    u64 timestamp;
+
+    u64 flags;
+    u64 pidfd;                 // PID file descriptor
+    u64 child_tid;             // Child TID
+    u64 parent_tid;            // Parent TID
+    char comm[16];
+};
+
+struct clone3_exit_data_t {
+    u64 type;
+    u64 pid_and_tid;
+    u64 timestamp;
+
+    u64 child_pid;
+};
+
+int trace_clone3_enter(struct tracepoint__syscalls__sys_enter_clone3 *ctx) {
+    struct clone3_enter_data_t data = {};
+    struct clone_args args = {};
+    
+    data.type = 10; 
+    data.pid_and_tid = bpf_get_current_pid_tgid();
+    data.timestamp = bpf_ktime_get_ns();
+
+    bpf_probe_read_user(&args, sizeof(args), ctx->uargs);
+
+    data.flags = args.flags;
+    data.pidfd = args.pidfd;
+    data.child_tid = args.child_tid;
+    data.parent_tid = args.parent_tid;
+
+    bpf_get_current_comm(&data.comm, sizeof(data.comm));
+
+    events.ringbuf_output(&data, sizeof(data), 0);
+    return 0;
+}
+
+int trace_clone3_exit(struct tracepoint__syscalls__sys_exit_clone3 *ctx) {
+    struct clone3_exit_data_t data = {};
+    data.type = 11; 
+    data.pid_and_tid = bpf_get_current_pid_tgid();
+    data.timestamp = bpf_ktime_get_ns();
+
+    data.child_pid = ctx->ret;
+
+    events.ringbuf_output(&data, sizeof(data), 0);
+    return 0;
+}
+
+// ======================================================================================
+
+
+// ==== vfork ===========================================================================
+
+struct vfork_enter_data_t {
+    u64 type;
+    u64 pid_and_tid;           // Process ID << 32 | Thread ID
+    u64 timestamp;
+
+    char comm[16];
+};
+
+struct vfork_exit_data_t {
+    u64 type;
+    u64 pid_and_tid;
+    u64 timestamp;
+
+    u64 child_pid;
+};
+
+int trace_vfork_enter(struct tracepoint__syscalls__sys_enter_vfork *ctx) {
+    struct vfork_enter_data_t data = {};
+    data.type = 12; 
+    data.pid_and_tid = bpf_get_current_pid_tgid();
+    data.timestamp = bpf_ktime_get_ns();
+
+    bpf_get_current_comm(&data.comm, sizeof(data.comm));
+
+    events.ringbuf_output(&data, sizeof(data), 0);
+    return 0;
+}
+
+int trace_vfork_exit(struct tracepoint__syscalls__sys_exit_vfork *ctx) {
+    struct vfork_exit_data_t data = {};
+    data.type = 13; 
+    data.pid_and_tid = bpf_get_current_pid_tgid();
+    data.timestamp = bpf_ktime_get_ns();
+
+    data.child_pid = ctx->ret;
+
+    events.ringbuf_output(&data, sizeof(data), 0);
+    return 0;
+}
+
 // ======================================================================================
 

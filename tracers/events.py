@@ -70,6 +70,22 @@ def handle_event(cpu, raw_data, size, tracker: MemoryTracker, tracked_pids, even
         event = cast(raw_data, POINTER(CloneExitEvent)).contents
         handle_clone_exit_events(event, tracked_pids, tracker, event_cache)
 
+    elif type == 10:  
+        event = cast(raw_data, POINTER(Clone3EnterEvent)).contents
+        handle_clone3_enter_events(event, tracked_pids, event_cache)
+
+    elif type == 11:  
+        event = cast(raw_data, POINTER(Clone3ExitEvent)).contents
+        handle_clone3_exit_events(event, tracked_pids, tracker, event_cache)
+
+    elif type == 12:  
+        event = cast(raw_data, POINTER(VforkEnterEvent)).contents
+        handle_vfork_enter_event(event, tracked_pids, event_cache)
+
+    elif type == 13:  
+        event = cast(raw_data, POINTER(VforkExitEvent)).contents
+        handle_vfork_exit_event(event, tracked_pids, tracker, event_cache)
+
     else:
         print(f'size not recognized: {size}')
 
@@ -80,48 +96,91 @@ def set_tracker_pid(pid):
     global tracker_pid
     tracker_pid = pid
 
+WITH_LOGGER = False
+
+def debug_state(event_cache, tracked_pids):
+    if not WITH_LOGGER:
+        return
+    print(f"DEBUG: tracked_pids: {tracked_pids}")
+    print(f"DEBUG: event_cache.new_pids: {event_cache.new_pids}")
+    print(f"DEBUG: event_cache.tracked_tids_that_cloned: {event_cache.tracked_tids_that_cloned}")
+
 def handle_clone_enter_events(event, tracked_pids, event_cache: EventCache):
-    global tracker_pid
-
     pid = event.pid_and_tid >> 32
-    # print(f'entering clone {pid}')
-    if event.flags & 0x00010000 != 0:
-        # CLONE_THREAD set
-        # print(f'CLONE_THREAD set')
-        pass
 
-    # print(f'len(event_cache.tracked_tids_that_cloned) > 0 or pid in tracked_pids:{len(event_cache.tracked_tids_that_cloned) > 0 or pid in tracked_pids}')
-    if len(event_cache.tracked_tids_that_cloned) > 0 or pid in tracked_pids or (tracker_pid is not None and pid == tracker_pid):
-        tracker_pid = None
-        event_cache.tracked_tids_that_cloned.add(event.pid_and_tid)
+    # Only track events initiated by tracker_pid or its descendants
+    if pid not in tracked_pids and pid != tracker_pid:
+        return
 
+    if WITH_LOGGER:
+        print(f"Entering clone (pid={pid}, flags={event.flags})")
+    if event.flags & 0x00010000 != 0:  # Skip threads (CLONE_THREAD)
+        return
+
+    event_cache.tracked_tids_that_cloned.add(event.pid_and_tid)
+    debug_state(event_cache, tracked_pids)
 
 def handle_clone_exit_events(event, tracked_pids: set, tracker: MemoryTracker, event_cache: EventCache):
-    # all events should be cached from now on!
-    # add the new pid to tracked pids
-
     if event.pid_and_tid not in event_cache.tracked_tids_that_cloned:
         return
 
     pid = event.pid_and_tid >> 32
-    # print(f'exiting clone {pid} -> {event.child_pid}')
+    if WITH_LOGGER:
+        print(f"Exiting clone (pid={pid}, child_pid={event.child_pid})")
 
-    if event.child_pid in tracked_pids:
+    # Add the child PID only if the parent is tracker_pid or a descendant
+    if pid in tracked_pids or pid == tracker_pid:
+        tracked_pids.add(event.child_pid)
+
+    event_cache.tracked_tids_that_cloned.remove(event.pid_and_tid)
+    debug_state(event_cache, tracked_pids)
+
+def handle_clone3_enter_events(event, tracked_pids, event_cache: EventCache):
+    pid = event.pid_and_tid >> 32
+
+    if pid not in tracked_pids and pid != tracker_pid:
         return
 
-    event_cache.new_pids.add(event.child_pid)
+    if WITH_LOGGER:
+        print(f"Entering clone3 (pid={pid})")
+    event_cache.tracked_tids_that_cloned.add(event.pid_and_tid)
+    debug_state(event_cache, tracked_pids)
+
+def handle_clone3_exit_events(event, tracked_pids: set, tracker: MemoryTracker, event_cache: EventCache):
+    if event.pid_and_tid not in event_cache.tracked_tids_that_cloned:
+        return
+
+    pid = event.pid_and_tid >> 32
+    if WITH_LOGGER:
+        print(f"Exiting clone3 (pid={pid}, child_pid={event.child_pid})")
+
+    if pid in tracked_pids or pid == tracker_pid:
+        tracked_pids.add(event.child_pid)
+
     event_cache.tracked_tids_that_cloned.remove(event.pid_and_tid)
-    # print(f'len is {len(event_cache.tracked_tids_that_cloned)}')
-    if len(event_cache.tracked_tids_that_cloned) == 0:
+    debug_state(event_cache, tracked_pids)
 
-        for pid in event_cache.new_pids:
-            for (cpu, raw_data, size) in event_cache.cached_events[pid]:
-                handle_event(cpu, raw_data, size, tracker, event_cache.new_pids, None)
+def handle_vfork_enter_event(event, tracked_pids, event_cache: EventCache):
+    pid = event.pid_and_tid >> 32
 
-        if event_cache.first:
-            event_cache.first = False
-            tracked_pids.clear()
+    if pid not in tracked_pids and pid != tracker_pid:
+        return
 
-        tracked_pids.update(event_cache.new_pids)
-        event_cache.cached_events.clear()
-        event_cache.new_pids.clear()
+    if WITH_LOGGER:
+        print(f"Entering vfork (pid={pid})")
+    event_cache.tracked_tids_that_cloned.add(event.pid_and_tid)
+    debug_state(event_cache, tracked_pids)
+
+def handle_vfork_exit_event(event, tracked_pids: set, tracker: MemoryTracker, event_cache: EventCache):
+    if event.pid_and_tid not in event_cache.tracked_tids_that_cloned:
+        return
+
+    pid = event.pid_and_tid >> 32
+    if WITH_LOGGER:
+        print(f"Exiting vfork (pid={pid}, child_pid={event.child_pid})")
+
+    if pid in tracked_pids or pid == tracker_pid:
+        tracked_pids.add(event.child_pid)
+
+    event_cache.tracked_tids_that_cloned.remove(event.pid_and_tid)
+    debug_state(event_cache, tracked_pids)

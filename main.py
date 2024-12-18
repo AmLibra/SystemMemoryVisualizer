@@ -41,6 +41,18 @@ def dumpstacks(signal, frame):
 import signal
 signal.signal(signal.SIGUSR1, dumpstacks)
 
+def kill_processes_by_name(name):
+    try:
+        result = subprocess.run(["pgrep", "-f", name], stdout=subprocess.PIPE, text=True)
+        pids = result.stdout.splitlines()
+
+        for pid in pids:
+            print(f"Killing process {pid} ({name})")
+            os.kill(int(pid), signal.SIGKILL)
+
+    except Exception as e:
+        print(f"Error killing processes: {e}")
+
 def run_web_gui():
     """
     Launch the web GUI using 'npm run dev' and keep it running.
@@ -131,7 +143,7 @@ web_gui_thread.start()
 print("Initializing BPF programs...")
 
 bpf_file = BPF(src_file="bpf.c")
-print("\t Loaded BPF programs successfully")
+print("\t Loaded BPF program successfully")
 
 # Attach tracepoints
 print("Attaching tracepoints...")
@@ -153,17 +165,24 @@ bpf_file.attach_tracepoint(tp="syscalls:sys_enter_clone", fn_name="trace_clone_e
 print("\t Attached to sys_enter_clone")
 bpf_file.attach_tracepoint(tp="syscalls:sys_exit_clone", fn_name="trace_clone_exit")
 print("\t Attached to sys_exit_clone")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_clone3", fn_name="trace_clone3_enter")
+print("\t Attached to sys_enter_clone3")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_clone3", fn_name="trace_clone3_exit")
+print("\t Attached to sys_exit_clone3")
+bpf_file.attach_tracepoint(tp="syscalls:sys_enter_vfork", fn_name="trace_vfork_enter")
+print("\t Attached to sys_enter_vfork")
+bpf_file.attach_tracepoint(tp="syscalls:sys_exit_vfork", fn_name="trace_vfork_exit")
+print("\t Attached to sys_exit_vfork")
 
-set_tracker_pid(os.getpid())
+pid = os.getpid()
+set_tracker_pid(pid)
+print("Tracker PID set to", pid)
 
 bpf_file["events"].open_ring_buffer(
     lambda cpu, raw_data, size: handle_event(cpu, raw_data, size, tracker, tracked_pids, event_cache)
 )
 
-# tracked_pids.add(os.getpid())
-
 command = sys.argv[1:]
-print(f"Running command: {' '.join(command)}")
 parent_pid = runner.run_command(command)
 
 # Handle exit and cleanup

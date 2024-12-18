@@ -104,3 +104,39 @@ class CloneExitEvent(Structure):
         ("timestamp", c_ulonglong),
         ("child_pid", c_ulonglong),
     ]
+
+class Clone3EnterEvent(Structure):
+    _fields_ = [
+        ("type", c_ulonglong),
+        ("pid_and_tid", c_ulonglong),
+        ("timestamp", c_ulonglong),
+        ("flags", c_ulonglong),       # Clone flags
+        ("pidfd", c_ulonglong),       # PID file descriptor
+        ("child_tid", c_ulonglong),   # Child thread ID
+        ("parent_tid", c_ulonglong),  # Parent thread ID
+        ("comm", c_char * 16),        # Process name
+    ]
+
+class Clone3ExitEvent(Structure):
+    _fields_ = [
+        ("type", c_ulonglong),
+        ("pid_and_tid", c_ulonglong),
+        ("timestamp", c_ulonglong),
+        ("child_pid", c_ulonglong),  # PID of the child process
+    ]
+
+class VforkEnterEvent(Structure):
+    _fields_ = [
+        ("type", c_ulonglong),
+        ("pid_and_tid", c_ulonglong),
+        ("timestamp", c_ulonglong),
+        ("comm", c_char * 16),  # Process name
+    ]
+
+class VforkExitEvent(Structure):
+    _fields_ = [
+        ("type", c_ulonglong),
+        ("pid_and_tid", c_ulonglong),
+        ("timestamp", c_ulonglong),
+        ("child_pid", c_ulonglong),  # PID of the child process
+    ]
