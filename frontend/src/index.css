@@ -130,7 +130,7 @@ body {
 
 .process-selector select {
   height: 100%;
-  background-color: rgba(40, 40, 40, .8);
+  background-color: #191919;
   color: #fcfcfe;
   border: 1px solid #333335;
   border-radius: 4px;
@@ -147,7 +147,7 @@ body {
   background-repeat: no-repeat;
   background-position: right 8px center;
 
-  max-width: 200px;
+  max-width: 250px;
 }
 
 .sr-only {
