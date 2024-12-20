@@ -1,5 +1,7 @@
 # SystemMemoryVisualizer
 
+![The visualizer UI](https://github.com/user-attachments/assets/16606dbf-13ca-419a-a2db-b5589b20a4a2)
+
 This project includes scripts and tools that will be used to monitor and analyze the behavior of programs running on a Linux system. 
 This documentation refers to the first module of the project, which is focused on the use of BPF to monitor system calls.
 The scripts in this module are written in Python and use the BCC library to interact with the BPF programs.
