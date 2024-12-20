@@ -46,6 +46,7 @@ body {
   border-bottom: 1px solid #333335;
   min-height: 60px;
   padding: 0 16px;
+  position: relative;
 }
 
 .nav h1 {
@@ -117,4 +118,47 @@ body {
   margin: 0;
   color: #6f6f72;
   font-weight: 600;
+}
+
+.process-selector {
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  padding: 10px;
+}
+
+.process-selector select {
+  height: 100%;
+  background-color: rgba(40, 40, 40, .8);
+  color: #fcfcfe;
+  border: 1px solid #333335;
+  border-radius: 4px;
+  padding: 8px;
+  padding-right: 36px;
+  font-size: .8rem;
+  font-weight: 500;
+  appearance: none;
+  cursor: pointer;
+
+  /* Heroicons (MIT license) */
+  background-image: url(data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0id2hpdGUiPgogIDxwYXRoIGZpbGwtcnVsZT0iZXZlbm9kZCIgZD0iTTUuMjIgMTAuMjJhLjc1Ljc1IDAgMCAxIDEuMDYgMEw4IDExLjk0bDEuNzItMS43MmEuNzUuNzUgMCAxIDEgMS4wNiAxLjA2bC0yLjI1IDIuMjVhLjc1Ljc1IDAgMCAxLTEuMDYgMGwtMi4yNS0yLjI1YS43NS43NSAwIDAgMSAwLTEuMDZaTTEwLjc4IDUuNzhhLjc1Ljc1IDAgMCAxLTEuMDYgMEw4IDQuMDYgNi4yOCA1Ljc4YS43NS43NSAwIDAgMS0xLjA2LTEuMDZsMi4yNS0yLjI1YS43NS43NSAwIDAgMSAxLjA2IDBsMi4yNSAyLjI1YS43NS43NSAwIDAgMSAwIDEuMDZaIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIC8+Cjwvc3ZnPgo=);
+  background-size: 16px;
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+
+  max-width: 200px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
 }
