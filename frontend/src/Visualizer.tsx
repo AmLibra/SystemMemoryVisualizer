@@ -7,6 +7,7 @@ import {
   virtualMemoryAccessor,
 } from "./MemoryUsageLineChart";
 import { createPortal } from "react-dom";
+import { AllocationId } from "./App";
 
 export type ByteAddressUnit = number;
 export type Time = number;
@@ -40,7 +41,7 @@ function formatAddress(pageNumber: ByteAddressUnit) {
 }
 
 export default function Visualizer(props: {
-  allocations: Allocation[];
+  allocations: Record<AllocationId, Allocation>;
   minAddress: ByteAddressUnit | null;
   maxAddress: ByteAddressUnit | null;
   maxTime: Time;
@@ -80,7 +81,7 @@ function VisualizerContents({
   usage,
   availablePhysicalMemory,
 }: {
-  allocations: Allocation[];
+  allocations: Record<AllocationId, Allocation>;
   minAddress: ByteAddressUnit | null;
   maxAddress: ByteAddressUnit | null;
   maxTime: Time;
@@ -128,7 +129,13 @@ function VisualizerContents({
     svg.call(zoom);
   }, [width, height]);
 
-  const ticks = useAddressTicks(height, transform, yScale, minAddress, maxAddress);
+  const ticks = useAddressTicks(
+    height,
+    transform,
+    yScale,
+    minAddress,
+    maxAddress
+  );
 
   return (
     <>
@@ -177,9 +184,9 @@ function VisualizerContents({
 
           <g>
             {/* Allocations */}
-            {allocations.map((allocation, index) => (
+            {Object.entries(allocations).map(([allocationId, allocation]) => (
               <AllocationRect
-                key={index}
+                key={allocationId}
                 allocation={allocation}
                 transform={transform}
                 xScale={xScale}
@@ -379,7 +386,12 @@ function AllocationRect({
           )
         }
         y={transform.applyY(yScale(allocation.startAddress))}
-        height={Math.max(1, transform.k * (yScale(allocation.startAddress + allocation.size) - yScale(allocation.startAddress)))}
+        height={Math.max(
+          1,
+          transform.k *
+            (yScale(allocation.startAddress + allocation.size) -
+              yScale(allocation.startAddress))
+        )}
         fill={allocation.fill}
         onMouseOver={() => {
           setTooltipPosition(allocRef.current?.getBoundingClientRect() ?? null);
@@ -458,7 +470,14 @@ function useAddressTicks(
     const VALUES_PER_PIXEL = 1 / 50;
 
     const increment =
-      2 ** Math.floor(Math.log2((((maxAddress ?? ADDRESS_MAX) - (minAddress ?? 0)) / zoomedHeight / VALUES_PER_PIXEL)));
+      2 **
+      Math.floor(
+        Math.log2(
+          ((maxAddress ?? ADDRESS_MAX) - (minAddress ?? 0)) /
+            zoomedHeight /
+            VALUES_PER_PIXEL
+        )
+      );
 
     const result: { value: number; type: "default" | "minor" | "major" }[] = [];
     for (
