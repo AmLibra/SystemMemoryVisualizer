@@ -325,6 +325,9 @@ struct vfork_exit_data_t {
     u64 child_pid;
 };
 
+// Only add tracepoints for vfork if the tracepoint is defined
+// (this struct seems to be missing on ARM builds of Linux)
+#ifdef tracepoint__syscalls__sys_enter_vfork
 int trace_vfork_enter(struct tracepoint__syscalls__sys_enter_vfork *ctx) {
     struct vfork_enter_data_t data = {};
     data.type = 12; 
@@ -348,6 +351,7 @@ int trace_vfork_exit(struct tracepoint__syscalls__sys_exit_vfork *ctx) {
     events.ringbuf_output(&data, sizeof(data), 0);
     return 0;
 }
+#endif
 
 // ======================================================================================
 

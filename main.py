@@ -169,10 +169,16 @@ bpf_file.attach_tracepoint(tp="syscalls:sys_enter_clone3", fn_name="trace_clone3
 print("\t Attached to sys_enter_clone3")
 bpf_file.attach_tracepoint(tp="syscalls:sys_exit_clone3", fn_name="trace_clone3_exit")
 print("\t Attached to sys_exit_clone3")
-bpf_file.attach_tracepoint(tp="syscalls:sys_enter_vfork", fn_name="trace_vfork_enter")
-print("\t Attached to sys_enter_vfork")
-bpf_file.attach_tracepoint(tp="syscalls:sys_exit_vfork", fn_name="trace_vfork_exit")
-print("\t Attached to sys_exit_vfork")
+
+def attach_tracepoint_if_exists(bpf, tp, fn_name):
+    try:
+        bpf.attach_tracepoint(tp=tp, fn_name=fn_name)
+        print(f"\t Attached to {tp}")
+    except Exception as e:
+        print(f"\t Ignoring tracepoint {tp}: {e}")
+
+attach_tracepoint_if_exists(bpf_file, "syscalls:sys_enter_vfork", "trace_vfork_enter")
+attach_tracepoint_if_exists(bpf_file, "syscalls:sys_exit_vfork", "trace_vfork_exit")
 
 pid = os.getpid()
 set_tracker_pid(pid)
