@@ -12,6 +12,7 @@ import time
 import subprocess
 import os
 import re
+import atexit
 
 
 # Initialize Runner
@@ -39,6 +40,7 @@ def dumpstacks(signal, frame):
     print("\n".join(code))
 
 import signal
+import atexit
 signal.signal(signal.SIGUSR1, dumpstacks)
 
 def kill_processes_by_name(name):
@@ -84,6 +86,10 @@ def run_web_gui():
             preexec_fn=os.setsid,
             env=env,
         )
+
+        def cleanup_web_server():
+            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        atexit.register(cleanup_web_server)
 
         print(f"Web GUI started with PID: {process.pid}")
 
