@@ -46,7 +46,6 @@ export default function Visualizer(props: {
   maxAddress: ByteAddressUnit | null;
   maxTime: Time;
   usage: MemoryUsageDataPoint[];
-  availablePhysicalMemory: ByteAddressUnit;
 }) {
   const [ref, { width, height }] = useMeasure();
 
@@ -79,7 +78,6 @@ function VisualizerContents({
   width,
   height,
   usage,
-  availablePhysicalMemory,
 }: {
   allocations: Record<AllocationId, Allocation>;
   minAddress: ByteAddressUnit | null;
@@ -88,7 +86,6 @@ function VisualizerContents({
   width: number;
   height: number;
   usage: MemoryUsageDataPoint[];
-  availablePhysicalMemory: ByteAddressUnit;
 }) {
   const xScale = d3
     .scaleLinear()
@@ -221,7 +218,6 @@ function VisualizerContents({
             >
               <MemoryUsageLines
                 usage={usage}
-                availablePhysicalMemory={availablePhysicalMemory}
                 transform={transform}
                 maxTime={maxTime}
                 xScale={xScale}
@@ -236,13 +232,11 @@ function VisualizerContents({
 
 function MemoryUsageLines({
   usage,
-  availablePhysicalMemory,
   transform,
   maxTime,
   xScale,
 }: {
   usage: MemoryUsageDataPoint[];
-  availablePhysicalMemory: ByteAddressUnit;
   transform: d3.ZoomTransform;
   maxTime: Time;
   xScale: d3.ScaleLinear<number, number>;
@@ -254,7 +248,7 @@ function MemoryUsageLines({
       Math.max(
         ...usage.map((u) => u.physicalMemoryUsage),
         ...usage.map((u) => u.virtualMemoryUsage),
-        availablePhysicalMemory
+        1
       ),
     ])
     .range([USAGE_CHART_HEIGHT, 0]);

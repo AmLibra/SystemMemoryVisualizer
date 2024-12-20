@@ -202,7 +202,6 @@ export default function App() {
         maxAddress={maxAddress}
         maxTime={maxTime}
         usage={usages}
-        availablePhysicalMemory={0}
       />
     </div>
   );
