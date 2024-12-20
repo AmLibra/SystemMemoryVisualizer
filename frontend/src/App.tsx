@@ -6,7 +6,7 @@ import Visualizer, {
 } from "./Visualizer";
 import { COLORS } from "./util/colors";
 
-type AllocationId = number;
+export type AllocationId = number;
 type Time = number;
 type ProcessId = number;
 
@@ -191,10 +191,12 @@ export default function App() {
       <Visualizer
         allocations={
           selectedProcess === "all"
-            ? Object.values(allocations).flatMap((allocationsById) =>
-                Object.values(allocationsById)
+            ? Object.fromEntries(
+                Object.values(allocations).flatMap((allocationsById) =>
+                  Object.entries(allocationsById)
+                )
               )
-            : Object.values(allocations[selectedProcess] ?? {})
+            : allocations[selectedProcess] ?? {}
         }
         minAddress={minAddress}
         maxAddress={maxAddress}
